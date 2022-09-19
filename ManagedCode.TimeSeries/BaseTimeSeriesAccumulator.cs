@@ -33,7 +33,9 @@ public abstract class BaseTimeSeriesAccumulator<T> : BaseTimeSeries<T, Queue<T>>
         foreach (var item in Samples.ToArray())
         {
             if (item.Value.Count > 0)
+            {
                 break;
+            }
 
             Samples.Remove(item.Key);
         }
@@ -46,14 +48,15 @@ public abstract class BaseTimeSeriesAccumulator<T> : BaseTimeSeries<T, Queue<T>>
         foreach (var item in Samples.Reverse().ToArray())
         {
             if (item.Value.Count > 0)
+            {
                 break;
+            }
 
             Samples.Remove(item.Key);
         }
 
         return this;
     }
-
 
     public BaseTimeSeriesAccumulator<T> Merge(BaseTimeSeriesAccumulator<T> accumulator)
     {

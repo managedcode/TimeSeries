@@ -4,8 +4,8 @@ namespace ManagedCode.TimeSeries;
 
 public abstract class BaseTimeSeries<T, TSample>
 {
-    protected readonly int _samplesCount;
     protected const int _defaultSampleCount = 100;
+    protected readonly int _samplesCount;
 
     protected BaseTimeSeries(TimeSpan sampleInterval, int samplesCount)
     {
@@ -47,7 +47,6 @@ public abstract class BaseTimeSeries<T, TSample>
         CheckSamplesSize();
     }
 
-
     public void AddNewData(DateTimeOffset dateTimeOffset, T data)
     {
         DataCount += 1;
@@ -84,7 +83,7 @@ public abstract class BaseTimeSeries<T, TSample>
                 {
                     if (typeof(TSample).IsClass)
                     {
-                        Samples.Add(now, (TSample) Activator.CreateInstance(typeof(TSample)));
+                        Samples.Add(now, (TSample)Activator.CreateInstance(typeof(TSample)));
                     }
                     else
                     {
@@ -109,7 +108,7 @@ public abstract class BaseTimeSeries<T, TSample>
                 {
                     if (typeof(TSample).IsClass)
                     {
-                        Samples.Add(nowForFeature, (TSample) Activator.CreateInstance(typeof(TSample)));
+                        Samples.Add(nowForFeature, (TSample)Activator.CreateInstance(typeof(TSample)));
                     }
                     else
                     {
@@ -121,7 +120,7 @@ public abstract class BaseTimeSeries<T, TSample>
                 {
                     if (typeof(TSample).IsClass)
                     {
-                        Samples.Add(nowForPast, (TSample) Activator.CreateInstance(typeof(TSample)));
+                        Samples.Add(nowForPast, (TSample)Activator.CreateInstance(typeof(TSample)));
                     }
                     else
                     {

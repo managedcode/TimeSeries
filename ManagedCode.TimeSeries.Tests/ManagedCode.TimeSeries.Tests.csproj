@@ -28,7 +28,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\ManagedCode.TimeSeries.Sample\ManagedCode.TimeSeries.Sample.csproj" />
         <ProjectReference Include="..\ManagedCode.TimeSeries\ManagedCode.TimeSeries.csproj" />
     </ItemGroup>
 

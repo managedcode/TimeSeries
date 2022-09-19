@@ -4,7 +4,7 @@ public static class RoundDateTimeAndTimeSpanExtensions
 {
     public static TimeSpan Round(this TimeSpan time, TimeSpan roundingInterval, MidpointRounding roundingType)
     {
-        return new TimeSpan(Convert.ToInt64(Math.Round(time.Ticks / (decimal) roundingInterval.Ticks, roundingType)) * roundingInterval.Ticks);
+        return new TimeSpan(Convert.ToInt64(Math.Round(time.Ticks / (decimal)roundingInterval.Ticks, roundingType)) * roundingInterval.Ticks);
     }
 
     public static TimeSpan Round(this TimeSpan time, TimeSpan roundingInterval)

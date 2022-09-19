@@ -2,8 +2,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ManagedCode.TimeSeries", "ManagedCode.TimeSeries\ManagedCode.TimeSeries.csproj", "{76A0D190-83D9-41EE-8086-B01502CE9AAC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ManagedCode.TimeSeries.Sample", "ManagedCode.TimeSeries.Sample\ManagedCode.TimeSeries.Sample.csproj", "{C62F7335-3703-4020-8EA4-800BD6D5A88F}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ManagedCode.TimeSeries.Tests", "ManagedCode.TimeSeries.Tests\ManagedCode.TimeSeries.Tests.csproj", "{710C92DC-0803-4AE0-AA4E-09380903E2A8}"
 EndProject
 Global
@@ -16,10 +14,6 @@ Global
 		{76A0D190-83D9-41EE-8086-B01502CE9AAC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{76A0D190-83D9-41EE-8086-B01502CE9AAC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{76A0D190-83D9-41EE-8086-B01502CE9AAC}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C62F7335-3703-4020-8EA4-800BD6D5A88F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C62F7335-3703-4020-8EA4-800BD6D5A88F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C62F7335-3703-4020-8EA4-800BD6D5A88F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C62F7335-3703-4020-8EA4-800BD6D5A88F}.Release|Any CPU.Build.0 = Release|Any CPU
 		{710C92DC-0803-4AE0-AA4E-09380903E2A8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{710C92DC-0803-4AE0-AA4E-09380903E2A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{710C92DC-0803-4AE0-AA4E-09380903E2A8}.Release|Any CPU.ActiveCfg = Release|Any CPU

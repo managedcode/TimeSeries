@@ -11,12 +11,12 @@ public class IntTimeSeriesSummer : BaseTimeSeriesSummer<int>
         return left + right;
     }
 
-    public void Increment()
+    public virtual void Increment()
     {
         AddNewData(1);
     }
 
-    public void Decrement()
+    public virtual void Decrement()
     {
         AddNewData(-1);
     }
