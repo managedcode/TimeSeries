@@ -4,8 +4,8 @@ namespace ManagedCode.TimeSeries;
 
 public abstract class BaseTimeSeries<T, TSample>
 {
-    protected const int _defaultSampleCount = 100;
-    protected readonly int _samplesCount;
+    private const int DefaultSampleCount = 100;
+    private readonly int _samplesCount;
 
     protected BaseTimeSeries(TimeSpan sampleInterval, int samplesCount)
     {
@@ -71,7 +71,7 @@ public abstract class BaseTimeSeries<T, TSample>
 
     public void MarkupAllSamples(MarkupDirection direction = MarkupDirection.Past)
     {
-        var samples = _samplesCount > 0 ? _samplesCount : _defaultSampleCount;
+        var samples = _samplesCount > 0 ? _samplesCount : DefaultSampleCount;
 
         if (direction is MarkupDirection.Past or MarkupDirection.Feature)
         {
@@ -81,14 +81,7 @@ public abstract class BaseTimeSeries<T, TSample>
                 now = now.Round(SampleInterval);
                 if (!Samples.ContainsKey(now))
                 {
-                    if (typeof(TSample).IsClass)
-                    {
-                        Samples.Add(now, (TSample)Activator.CreateInstance(typeof(TSample)));
-                    }
-                    else
-                    {
-                        Samples.Add(now, default);
-                    }
+                    Samples.Add(now, Activator.CreateInstance<TSample>());
                 }
 
                 now = direction is MarkupDirection.Feature ? now.Add(SampleInterval) : now.Subtract(SampleInterval);
@@ -106,26 +99,12 @@ public abstract class BaseTimeSeries<T, TSample>
 
                 if (!Samples.ContainsKey(nowForFeature))
                 {
-                    if (typeof(TSample).IsClass)
-                    {
-                        Samples.Add(nowForFeature, (TSample)Activator.CreateInstance(typeof(TSample)));
-                    }
-                    else
-                    {
-                        Samples.Add(nowForFeature, default);
-                    }
+                    Samples.Add(nowForFeature, Activator.CreateInstance<TSample>());
                 }
 
                 if (!Samples.ContainsKey(nowForPast))
                 {
-                    if (typeof(TSample).IsClass)
-                    {
-                        Samples.Add(nowForPast, (TSample)Activator.CreateInstance(typeof(TSample)));
-                    }
-                    else
-                    {
-                        Samples.Add(nowForPast, default);
-                    }
+                    Samples.Add(nowForPast, Activator.CreateInstance<TSample>());
                 }
 
                 nowForFeature = nowForFeature.Add(SampleInterval);
@@ -133,6 +112,7 @@ public abstract class BaseTimeSeries<T, TSample>
             }
         }
     }
+    
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected abstract void AddData(DateTimeOffset now, T data);
