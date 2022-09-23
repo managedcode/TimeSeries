@@ -1,6 +1,7 @@
 global using Xunit;
 using FluentAssertions;
 using ManagedCode.TimeSeries;
+using ManagedCode.TimeSeries.Accumulators;
 using ManagedCode.TimeSeries.Sample;
 
 public class TimeSeriesTests
@@ -26,6 +27,34 @@ public class TimeSeriesTests
                 step++;
             }
         }
+    }
+    
+    [Fact]
+    public async Task AccumulatorByString()
+    {
+        var rnd = new Random();
+        var series = new StringTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1));
+
+        var dt = DateTimeOffset.Now;
+        series.AddNewData(dt, "1");
+        series.AddNewData(dt, "1");
+        series.AddNewData(dt, "2");
+        series.AddNewData(dt, "3");
+        series.AddNewData(dt, "3");
+        series.AddNewData(dt, "2");
+
+
+        dt = dt.AddHours(5);
+        series.AddNewData(dt, "1");
+        series.AddNewData(dt, "1");
+        series.AddNewData(dt, "2");
+        series.AddNewData(dt, "3");
+        series.AddNewData(dt, "3");
+        series.AddNewData(dt, "2");
+
+        series.DataCount.Should().Be(12);
+        series.Samples.First().Value.Count.Should().Be(3);
+        series.Samples.Last().Value.Count.Should().Be(3);
     }
 
     [Fact]

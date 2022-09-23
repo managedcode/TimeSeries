@@ -54,19 +54,17 @@ public abstract class BaseTimeSeries<T, TSample>
         CheckSamplesSize();
     }
 
-    protected bool CheckSamplesSize()
+    protected void CheckSamplesSize()
     {
         if (_samplesCount <= 0)
         {
-            return false;
+            return;
         }
 
         while (IsOverflow)
         {
             Samples.Remove(Samples.Keys.MinBy(o => o)); //check performance here
         }
-
-        return true;
     }
 
     public void MarkupAllSamples(MarkupDirection direction = MarkupDirection.Past)
