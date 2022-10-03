@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries;
 

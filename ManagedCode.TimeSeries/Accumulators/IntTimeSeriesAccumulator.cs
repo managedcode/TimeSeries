@@ -1,4 +1,4 @@
-namespace ManagedCode.TimeSeries.Sample;
+namespace ManagedCode.TimeSeries.Accumulators;
 
 public class IntTimeSeriesAccumulator : BaseTimeSeriesAccumulator<int>
 {

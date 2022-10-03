@@ -1,8 +1,9 @@
-global using Xunit;
 using FluentAssertions;
-using ManagedCode.TimeSeries;
 using ManagedCode.TimeSeries.Accumulators;
-using ManagedCode.TimeSeries.Sample;
+using ManagedCode.TimeSeries.Summers;
+using Xunit;
+
+namespace ManagedCode.TimeSeries.Tests;
 
 public class TimeSeriesTests
 {

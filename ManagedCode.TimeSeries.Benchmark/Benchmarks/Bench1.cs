@@ -1,5 +1,5 @@
 using BenchmarkDotNet.Attributes;
-using ManagedCode.TimeSeries.Sample;
+using ManagedCode.TimeSeries.Accumulators;
 
 namespace ManagedCode.TimeSeries.Benchmark.Benchmarks;
 

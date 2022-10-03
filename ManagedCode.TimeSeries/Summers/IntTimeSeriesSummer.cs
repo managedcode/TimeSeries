@@ -1,4 +1,4 @@
-namespace ManagedCode.TimeSeries.Sample;
+namespace ManagedCode.TimeSeries.Summers;
 
 public class IntTimeSeriesSummer : BaseTimeSeriesSummer<int>
 {

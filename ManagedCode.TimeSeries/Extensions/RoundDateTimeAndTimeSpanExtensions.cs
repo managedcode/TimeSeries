@@ -1,4 +1,4 @@
-namespace ManagedCode.TimeSeries;
+namespace ManagedCode.TimeSeries.Extensions;
 
 public static class RoundDateTimeAndTimeSpanExtensions
 {
