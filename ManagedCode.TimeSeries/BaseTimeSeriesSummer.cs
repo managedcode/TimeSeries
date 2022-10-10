@@ -6,7 +6,8 @@ public enum Strategy
 {
     Sum,
     Min,
-    Max
+    Max,
+    Replace,
 }
 
 public abstract class BaseTimeSeriesSummer<T> : BaseTimeSeries<T, T> 
@@ -55,6 +56,7 @@ public abstract class BaseTimeSeriesSummer<T> : BaseTimeSeries<T, T>
             Strategy.Sum => Plus(left, right),
             Strategy.Min => Min(left, right),
             Strategy.Max => Max(left, right),
+            Strategy.Replace => right,
             _ => throw new ArgumentOutOfRangeException()
         };
     }
