@@ -25,6 +25,9 @@ public class FloatTimeSeriesSummer : BaseTimeSeriesSummer<float>
     {
         lock (_sync)
         {
+            if (Samples.Count == 0)
+                return 0;
+            
             return Samples.Values.Average();
         }
     }
