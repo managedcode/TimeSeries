@@ -7,6 +7,7 @@ public abstract class BaseTimeSeries<T, TSample>
 {
     private const int DefaultSampleCount = 100;
     private readonly int _samplesCount;
+    private object _sync = new();
 
     protected BaseTimeSeries(TimeSpan sampleInterval, int samplesCount)
     {
@@ -40,19 +41,25 @@ public abstract class BaseTimeSeries<T, TSample>
 
     public void AddNewData(T data)
     {
-        DataCount += 1;
         var rounded = DateTimeOffset.UtcNow.Round(SampleInterval);
-        AddData(rounded, data);
-        End = rounded;
-        LastDate = DateTimeOffset.UtcNow;
-        CheckSamplesSize();
+        lock (_sync)
+        {
+            DataCount += 1;
+            AddData(rounded, data);
+            End = rounded;
+            LastDate = DateTimeOffset.UtcNow;
+            CheckSamplesSize();    
+        }
     }
 
     public void AddNewData(DateTimeOffset dateTimeOffset, T data)
     {
-        DataCount += 1;
-        AddData(dateTimeOffset.Round(SampleInterval), data);
-        CheckSamplesSize();
+        lock (_sync)
+        {
+            DataCount += 1;
+            AddData(dateTimeOffset.Round(SampleInterval), data);
+            CheckSamplesSize();
+        }
     }
 
     protected void CheckSamplesSize()
