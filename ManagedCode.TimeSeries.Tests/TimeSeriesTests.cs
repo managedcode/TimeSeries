@@ -90,6 +90,13 @@ public class TimeSeriesTests
 
         series.IsFull.Should().BeTrue();
     }
+    
+    [Fact]
+    public void IsEmpty()
+    {
+        var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10);
+        series.IsEmpty.Should().BeTrue();
+    }
 
     [Fact]
     public async Task AccumulatorMerge()
@@ -177,7 +184,7 @@ public class TimeSeriesTests
     public async Task SummerGroup()
     {
         var interval = TimeSpan.FromSeconds(0.1);
-        var series = new IntGroupTimeSeriesSummer(interval, 100, true);
+        var series = new IntGroupTimeSeriesSummer(interval, 100,  Strategy.Sum, true);
         var count = 0;
         for (var i = 0; i < 100; i++)
         {
@@ -190,6 +197,22 @@ public class TimeSeriesTests
         await Task.Delay(interval * 102);
         
         series.TimeSeries.Count.Should().Be(0);
+    }
+    
+    [Fact]
+    public async Task SummerGroupMax()
+    {
+        var interval = TimeSpan.FromSeconds(5);
+        var series = new IntGroupTimeSeriesSummer(interval, 100,  Strategy.Max, true);
+        var count = 0;
+        for (var i = 0; i < 100; i++)
+        {
+            series.AddNewData("host", i);
+            count++;
+        }
+
+        series.TimeSeries.Count.Should().Be(1);
+        series.TimeSeries.Values.SingleOrDefault().Samples.SingleOrDefault().Value.Should().Be(99);
     }
     
     [Fact]

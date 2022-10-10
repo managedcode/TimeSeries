@@ -4,11 +4,13 @@ public class DoubleGroupTimeSeriesSummer : BaseGroupTimeSeriesSummer<double, Dou
 {
     private readonly TimeSpan _sampleInterval;
     private readonly int _samplesCount;
+    private readonly Strategy _strategy;
 
-    public DoubleGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, bool deleteOverdueSamples) : base(sampleInterval, deleteOverdueSamples)
+    public DoubleGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount,  Strategy strategy, bool deleteOverdueSamples) : base(sampleInterval, deleteOverdueSamples)
     {
         _sampleInterval = sampleInterval;
         _samplesCount = samplesCount;
+        _strategy = strategy;
     } 
     
     public override double Average()
@@ -24,6 +26,6 @@ public class DoubleGroupTimeSeriesSummer : BaseGroupTimeSeriesSummer<double, Dou
 
     protected override DoubleTimeSeriesSummer CreateSummer()
     {
-        return new DoubleTimeSeriesSummer(_sampleInterval, _samplesCount);
+        return new DoubleTimeSeriesSummer(_sampleInterval, _samplesCount, _strategy);
     }
 }

@@ -2,9 +2,10 @@ namespace ManagedCode.TimeSeries;
 
 public abstract class BaseGroupTimeSeriesSummer<T,TSummer> where TSummer : BaseTimeSeriesSummer<T>, IDisposable
 {
+    private readonly Strategy _strategy;
     private readonly bool _deleteOverdueSamples;
-    public readonly Dictionary<string, TSummer> TimeSeries = new();
     private readonly Timer _timer;
+    public readonly Dictionary<string, TSummer> TimeSeries = new();
 
     protected BaseGroupTimeSeriesSummer(TimeSpan sampleInterval, bool deleteOverdueSamples)
     {

@@ -4,13 +4,15 @@ public class IntGroupTimeSeriesSummer : BaseGroupTimeSeriesSummer<int, IntTimeSe
 {
     private readonly TimeSpan _sampleInterval;
     private readonly int _samplesCount;
+    private readonly Strategy _strategy;
 
-    public IntGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, bool deleteOverdueSamples) : base(sampleInterval, deleteOverdueSamples)
+    public IntGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount,  Strategy strategy, bool deleteOverdueSamples) : base(sampleInterval, deleteOverdueSamples)
     {
         _sampleInterval = sampleInterval;
         _samplesCount = samplesCount;
+        _strategy = strategy;
     } 
-    
+
     public override int Average()
     {
         lock (TimeSeries)
@@ -24,6 +26,6 @@ public class IntGroupTimeSeriesSummer : BaseGroupTimeSeriesSummer<int, IntTimeSe
 
     protected override IntTimeSeriesSummer CreateSummer()
     {
-        return new IntTimeSeriesSummer(_sampleInterval, _samplesCount);
+        return new IntTimeSeriesSummer(_sampleInterval, _samplesCount, _strategy);
     }
 }

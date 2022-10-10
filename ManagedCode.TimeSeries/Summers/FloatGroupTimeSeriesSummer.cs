@@ -4,11 +4,13 @@ public class FloatGroupTimeSeriesSummer : BaseGroupTimeSeriesSummer<float, Float
 {
     private readonly TimeSpan _sampleInterval;
     private readonly int _samplesCount;
+    private readonly Strategy _strategy;
 
-    public FloatGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, bool deleteOverdueSamples) : base(sampleInterval, deleteOverdueSamples)
+    public FloatGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount,  Strategy strategy, bool deleteOverdueSamples) : base(sampleInterval, deleteOverdueSamples)
     {
         _sampleInterval = sampleInterval;
         _samplesCount = samplesCount;
+        _strategy = strategy;
     } 
     
     public override float Average()
@@ -24,6 +26,6 @@ public class FloatGroupTimeSeriesSummer : BaseGroupTimeSeriesSummer<float, Float
 
     protected override FloatTimeSeriesSummer CreateSummer()
     {
-        return new FloatTimeSeriesSummer(_sampleInterval, _samplesCount);
+        return new FloatTimeSeriesSummer(_sampleInterval, _samplesCount, _strategy);
     }
 }

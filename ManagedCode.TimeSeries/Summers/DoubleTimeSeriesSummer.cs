@@ -2,13 +2,31 @@ namespace ManagedCode.TimeSeries.Summers;
 
 public class DoubleTimeSeriesSummer : BaseTimeSeriesSummer<double>
 {
-    public DoubleTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount = 0) : base(sampleInterval, samplesCount)
+    public DoubleTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy) : base(sampleInterval, samplesCount, strategy)
+    {
+    }
+    
+    public DoubleTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount) : base(sampleInterval, samplesCount, Strategy.Sum)
+    {
+    }
+    
+    public DoubleTimeSeriesSummer(TimeSpan sampleInterval) : base(sampleInterval, 0, Strategy.Sum)
     {
     }
 
     protected override double Plus(double left, double right)
     {
         return left + right;
+    }
+
+    protected override double Min(double left, double right)
+    {
+        return Math.Min(left, right);
+    }
+
+    protected override double Max(double left, double right)
+    {
+        return Math.Max(left, right);
     }
 
     public override void Increment()
