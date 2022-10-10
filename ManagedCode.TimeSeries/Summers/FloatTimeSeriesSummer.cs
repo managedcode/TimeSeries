@@ -20,4 +20,12 @@ public class FloatTimeSeriesSummer : BaseTimeSeriesSummer<float>
     {
         AddNewData(-1);
     }
+    
+    public double Average()
+    {
+        lock (_sync)
+        {
+            return Samples.Values.Average();
+        }
+    }
 }

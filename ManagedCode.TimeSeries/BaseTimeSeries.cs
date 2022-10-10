@@ -7,7 +7,7 @@ public abstract class BaseTimeSeries<T, TSample>
 {
     private const int DefaultSampleCount = 100;
     private readonly int _samplesCount;
-    private object _sync = new();
+    protected object _sync = new();
 
     protected BaseTimeSeries(TimeSpan sampleInterval, int samplesCount)
     {
