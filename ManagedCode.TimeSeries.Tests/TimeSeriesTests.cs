@@ -174,6 +174,25 @@ public class TimeSeriesTests
     }
 
     [Fact]
+    public async Task SummerGroup()
+    {
+        var interval = TimeSpan.FromSeconds(0.1);
+        var series = new IntGroupTimeSeriesSummer(interval, 100, true);
+        var count = 0;
+        for (var i = 0; i < 100; i++)
+        {
+            await Task.Delay(new Random().Next(10, 50));
+            series.AddNewData((i % 10).ToString(), i);
+            count++;
+        }
+
+        series.TimeSeries.Count.Should().BeGreaterThan(0);
+        await Task.Delay(interval * 102);
+        
+        series.TimeSeries.Count.Should().Be(0);
+    }
+    
+    [Fact]
     public async Task SummerMerge()
     {
         Func<Task<IntTimeSeriesSummer>> FillFunc = async () =>

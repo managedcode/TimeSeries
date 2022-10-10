@@ -3,7 +3,7 @@ using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries;
 
-public abstract class BaseTimeSeries<T, TSample>
+public abstract class BaseTimeSeries<T, TSample> : IDisposable
 {
     private const int DefaultSampleCount = 100;
     private readonly int _samplesCount;
@@ -37,6 +37,7 @@ public abstract class BaseTimeSeries<T, TSample>
     public ulong DataCount { get; protected set; }
 
     public bool IsFull => Samples.Count >= _samplesCount;
+    public bool IsEmpty => Samples.Count == 0;
     public bool IsOverflow => Samples.Count > _samplesCount;
 
     public void AddNewData(T data)
@@ -64,14 +65,17 @@ public abstract class BaseTimeSeries<T, TSample>
 
     protected void CheckSamplesSize()
     {
-        if (_samplesCount <= 0)
+        lock (_sync)
         {
-            return;
-        }
+            if (_samplesCount <= 0)
+            {
+                return;
+            }
 
-        while (IsOverflow)
-        {
-            Samples.Remove(Samples.Keys.MinBy(o => o)); //check performance here
+            while (IsOverflow)
+            {
+                Samples.Remove(Samples.Keys.MinBy(o => o)); //check performance here
+            }
         }
     }
 
@@ -118,8 +122,33 @@ public abstract class BaseTimeSeries<T, TSample>
             }
         }
     }
+
+    public void DeleteOverdueSamples()
+    {
     
+        var dateTime = DateTimeOffset.UtcNow.Round(SampleInterval);
+        for (int i = 0; i < _samplesCount; i++)
+        {
+            dateTime = dateTime.Subtract(SampleInterval);
+        }
+ 
+        lock (_sync)
+        {
+            foreach (var date in Samples.Keys.ToArray())
+            {
+                if (date < dateTime)
+                {
+                    Samples.Remove(date);
+                }
+            }
+        }
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected abstract void AddData(DateTimeOffset now, T data);
+
+    public virtual void Dispose()
+    {
+        //skip
+    }
 }

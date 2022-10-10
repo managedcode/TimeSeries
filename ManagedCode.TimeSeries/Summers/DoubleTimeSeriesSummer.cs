@@ -11,17 +11,17 @@ public class DoubleTimeSeriesSummer : BaseTimeSeriesSummer<double>
         return left + right;
     }
 
-    public virtual void Increment()
+    public override void Increment()
     {
         AddNewData(1);
     }
 
-    public virtual void Decrement()
+    public override void Decrement()
     {
         AddNewData(-1);
     }
     
-    public double Average()
+    public override double Average()
     {
         lock (_sync)
         {

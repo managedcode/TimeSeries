@@ -11,24 +11,24 @@ public class FloatTimeSeriesSummer : BaseTimeSeriesSummer<float>
         return left + right;
     }
 
-    public virtual void Increment()
+    public override void Increment()
     {
         AddNewData(1);
     }
 
-    public virtual void Decrement()
+    public override void Decrement()
     {
         AddNewData(-1);
     }
     
-    public double Average()
+    public override float Average()
     {
         lock (_sync)
         {
             if (Samples.Count == 0)
                 return 0;
             
-            return Samples.Values.Average();
+            return Convert.ToSingle(Samples.Values.Average());
         }
     }
 }

@@ -40,4 +40,10 @@ public abstract class BaseTimeSeriesSummer<T> : BaseTimeSeries<T, T>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected abstract T Plus(T left, T right);
+
+    public abstract T Average();
+
+    public abstract void Increment();
+
+    public abstract void Decrement();
 }
