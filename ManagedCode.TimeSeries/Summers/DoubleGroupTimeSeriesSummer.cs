@@ -24,6 +24,39 @@ public class DoubleGroupTimeSeriesSummer : BaseGroupTimeSeriesSummer<double, Dou
         }
     }
 
+    public override double Min()
+    {
+        lock (TimeSeries)
+        {
+            if (TimeSeries.Count == 0)
+                return 0;
+            
+            return TimeSeries.Select(s => s.Value.Min()).Min();
+        }
+    }
+
+    public override double Max()
+    {
+        lock (TimeSeries)
+        {
+            if (TimeSeries.Count == 0)
+                return 0;
+            
+            return TimeSeries.Select(s => s.Value.Max()).Max();
+        }
+    }
+
+    public override double Sum()
+    {
+        lock (TimeSeries)
+        {
+            if (TimeSeries.Count == 0)
+                return 0;
+            
+            return TimeSeries.Select(s => s.Value.Sum()).Sum();
+        }
+    }
+
     protected override DoubleTimeSeriesSummer CreateSummer()
     {
         return new DoubleTimeSeriesSummer(_sampleInterval, _samplesCount, _strategy);

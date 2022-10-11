@@ -20,7 +20,40 @@ public class IntGroupTimeSeriesSummer : BaseGroupTimeSeriesSummer<int, IntTimeSe
             if (TimeSeries.Count == 0)
                 return 0;
             
-            return (int)Math.Round(TimeSeries.Select(s => s.Value.Average()).Average());
+            return Convert.ToInt32(Math.Round(TimeSeries.Select(s => s.Value.Average()).Average()));
+        }
+    }
+
+    public override int Min()
+    {
+        lock (TimeSeries)
+        {
+            if (TimeSeries.Count == 0)
+                return 0;
+            
+            return TimeSeries.Select(s => s.Value.Min()).Min();
+        }
+    }
+
+    public override int Max()
+    {
+        lock (TimeSeries)
+        {
+            if (TimeSeries.Count == 0)
+                return 0;
+            
+            return TimeSeries.Select(s => s.Value.Max()).Max();
+        }
+    }
+
+    public override int Sum()
+    {
+        lock (TimeSeries)
+        {
+            if (TimeSeries.Count == 0)
+                return 0;
+            
+            return TimeSeries.Select(s => s.Value.Sum()).Sum();
         }
     }
 

@@ -82,6 +82,12 @@ public abstract class BaseGroupTimeSeriesSummer<T,TSummer> where TSummer : BaseT
     }
 
     public abstract T Average();
+    
+    public abstract T Min();
+    
+    public abstract T Max();
+    
+    public abstract T Sum();
 
     protected abstract TSummer CreateSummer();
 
