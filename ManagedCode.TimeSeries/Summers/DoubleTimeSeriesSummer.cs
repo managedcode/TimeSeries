@@ -28,7 +28,7 @@ public class DoubleTimeSeriesSummer : BaseTimeSeriesSummer<double>
     {
         return Math.Max(left, right);
     }
-
+    
     public override void Increment()
     {
         AddNewData(1);
@@ -47,6 +47,39 @@ public class DoubleTimeSeriesSummer : BaseTimeSeriesSummer<double>
                 return 0;
             
             return Samples.Values.Average();
+        }
+    }
+
+    public override double Sum()
+    {
+        lock (_sync)
+        {
+            if (Samples.Count == 0)
+                return 0;
+            
+            return Samples.Values.Sum();
+        }
+    }
+
+    public override double Min()
+    {
+        lock (_sync)
+        {
+            if (Samples.Count == 0)
+                return 0;
+            
+            return Samples.Values.Min();
+        }
+    }
+    
+    public override double Max()
+    {
+        lock (_sync)
+        {
+            if (Samples.Count == 0)
+                return 0;
+            
+            return Samples.Values.Max();
         }
     }
 }

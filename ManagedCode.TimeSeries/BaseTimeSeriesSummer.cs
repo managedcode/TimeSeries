@@ -72,6 +72,15 @@ public abstract class BaseTimeSeriesSummer<T> : BaseTimeSeries<T, T>
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public abstract T Average();
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public abstract T Sum();
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public abstract T Min();
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public abstract T Max();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public abstract void Increment();

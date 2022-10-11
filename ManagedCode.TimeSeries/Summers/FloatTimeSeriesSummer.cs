@@ -46,7 +46,40 @@ public class FloatTimeSeriesSummer : BaseTimeSeriesSummer<float>
             if (Samples.Count == 0)
                 return 0;
             
-            return Convert.ToSingle(Samples.Values.Average());
+            return Samples.Values.Average();
+        }
+    }
+    
+    public override float Sum()
+    {
+        lock (_sync)
+        {
+            if (Samples.Count == 0)
+                return 0;
+            
+            return Samples.Values.Sum();
+        }
+    }
+
+    public override float Min()
+    {
+        lock (_sync)
+        {
+            if (Samples.Count == 0)
+                return 0;
+            
+            return Samples.Values.Min();
+        }
+    }
+    
+    public override float Max()
+    {
+        lock (_sync)
+        {
+            if (Samples.Count == 0)
+                return 0;
+            
+            return Samples.Values.Max();
         }
     }
 }

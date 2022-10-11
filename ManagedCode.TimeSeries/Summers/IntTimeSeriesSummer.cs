@@ -49,4 +49,37 @@ public class IntTimeSeriesSummer : BaseTimeSeriesSummer<int>
             return (int)Math.Round(Samples.Values.Average());
         }
     }
+    
+    public override int Sum()
+    {
+        lock (_sync)
+        {
+            if (Samples.Count == 0)
+                return 0;
+            
+            return Samples.Values.Sum();
+        }
+    }
+
+    public override int Min()
+    {
+        lock (_sync)
+        {
+            if (Samples.Count == 0)
+                return 0;
+            
+            return Samples.Values.Min();
+        }
+    }
+    
+    public override int Max()
+    {
+        lock (_sync)
+        {
+            if (Samples.Count == 0)
+                return 0;
+            
+            return Samples.Values.Max();
+        }
+    }
 }
