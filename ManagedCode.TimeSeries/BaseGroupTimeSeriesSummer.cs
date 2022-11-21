@@ -1,6 +1,10 @@
+using System.Numerics;
+
 namespace ManagedCode.TimeSeries;
 
-public abstract class BaseGroupTimeSeriesSummer<T,TSummer> where TSummer : BaseTimeSeriesSummer<T>, IDisposable
+public abstract class BaseGroupTimeSeriesSummer<TNumber, TSummer>
+    where TSummer : BaseTimeSeriesSummer<TNumber>, IDisposable
+    where TNumber : INumber<TNumber>
 {
     private readonly Strategy _strategy;
     private readonly bool _deleteOverdueSamples;
@@ -30,7 +34,7 @@ public abstract class BaseGroupTimeSeriesSummer<T,TSummer> where TSummer : BaseT
         }
     }
 
-    public virtual void AddNewData(string key, T value)
+    public virtual void AddNewData(string key, TNumber value)
     {
         lock (TimeSeries)
         {
@@ -46,7 +50,7 @@ public abstract class BaseGroupTimeSeriesSummer<T,TSummer> where TSummer : BaseT
             }
         }
     }
-    
+
     public virtual void Increment(string key)
     {
         lock (TimeSeries)
@@ -81,13 +85,13 @@ public abstract class BaseGroupTimeSeriesSummer<T,TSummer> where TSummer : BaseT
         }
     }
 
-    public abstract T Average();
-    
-    public abstract T Min();
-    
-    public abstract T Max();
-    
-    public abstract T Sum();
+    public abstract TNumber Average();
+
+    public abstract TNumber Min();
+
+    public abstract TNumber Max();
+
+    public abstract TNumber Sum();
 
     protected abstract TSummer CreateSummer();
 
@@ -95,5 +99,4 @@ public abstract class BaseGroupTimeSeriesSummer<T,TSummer> where TSummer : BaseT
     {
         _timer?.Dispose();
     }
-
 }

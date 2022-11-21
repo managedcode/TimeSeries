@@ -59,6 +59,6 @@ public class DoubleGroupTimeSeriesSummer : BaseGroupTimeSeriesSummer<double, Dou
 
     protected override DoubleTimeSeriesSummer CreateSummer()
     {
-        return new DoubleTimeSeriesSummer(_sampleInterval, _samplesCount, _strategy);
+        throw new NotImplementedException();
     }
 }

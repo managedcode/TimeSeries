@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace ManagedCode.TimeSeries;
@@ -10,7 +11,7 @@ public enum Strategy
     Replace,
 }
 
-public abstract class BaseTimeSeriesSummer<T> : BaseTimeSeries<T, T> 
+public abstract class BaseTimeSeriesSummer<TNumber> : BaseTimeSeries<TNumber, TNumber> where TNumber : INumber<TNumber>
 {
     private readonly Strategy _strategy;
 
@@ -19,17 +20,17 @@ public abstract class BaseTimeSeriesSummer<T> : BaseTimeSeries<T, T>
         _strategy = strategy;
     }
 
-    protected override void AddData(DateTimeOffset now, T data)
+    protected override void AddData(DateTimeOffset now, TNumber data)
     {
         if (!Samples.ContainsKey(now))
         {
-            Samples.Add(now, default);
+            Samples.Add(now, TNumber.Zero);
         }
 
         Samples[now] = Update(Samples[now], data);
     }
 
-    public BaseTimeSeriesSummer<T> Merge(BaseTimeSeriesSummer<T> accumulator)
+    public BaseTimeSeriesSummer<TNumber> Merge(BaseTimeSeriesSummer<TNumber> accumulator)
     {
         DataCount += accumulator.DataCount;
         foreach (var sample in accumulator.Samples.ToArray())
@@ -49,42 +50,62 @@ public abstract class BaseTimeSeriesSummer<T> : BaseTimeSeries<T, T>
         return this;
     }
 
-    private T Update(T left, T right)
+    private TNumber Update(TNumber left, TNumber right)
     {
         return _strategy switch
         {
-            Strategy.Sum => Plus(left, right),
-            Strategy.Min => Min(left, right),
-            Strategy.Max => Max(left, right),
+            Strategy.Sum => left + right,
+            Strategy.Min => TNumber.Min(left, right),
+            Strategy.Max => TNumber.Max(left, right),
             Strategy.Replace => right,
             _ => throw new ArgumentOutOfRangeException()
         };
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    protected abstract T Plus(T left, T right);
-    
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    protected abstract T Min(T left, T right);
-    
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    protected abstract T Max(T left, T right);
+    public virtual void Increment()
+    {
+        AddNewData(TNumber.One);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public abstract T Average();
-    
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public abstract T Sum();
-    
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public abstract T Min();
-    
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public abstract T Max();
+    public virtual void Decrement()
+    {
+        AddNewData(-TNumber.One);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public abstract void Increment();
+    public virtual TNumber Average()
+    {
+        var sum = Sum();
+
+        return TNumber.CreateChecked(sum) / TNumber.CreateChecked(Samples.Count);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public abstract void Decrement();
+    public virtual TNumber? Min()
+    {
+        lock (Samples)
+        {
+            return Samples.Values.Min();
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public virtual TNumber? Max()
+    {
+        lock (Samples)
+        {
+            return Samples.Values.Max();
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public virtual TNumber Sum()
+    {
+        lock (Samples)
+        {
+            return Samples.Aggregate(TNumber.Zero, (current, sample) => current + sample.Value);
+        }
+    }
 }
