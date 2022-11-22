@@ -69,7 +69,7 @@ public class TimeSeriesTests
             series.AddNewData(i);
         }
 
-        series.SamplesCount.Should().Be(10);
+        series.Samples.Count.Should().Be(10);
     }
 
     [Fact]
@@ -119,12 +119,12 @@ public class TimeSeriesTests
 
         await Task.WhenAll(seriesA, seriesB);
 
-        seriesA.Result.SamplesCount.Should().Be(10);
-        seriesB.Result.SamplesCount.Should().Be(10);
+        seriesA.Result.Samples.Count.Should().Be(10);
+        seriesB.Result.Samples.Count.Should().Be(10);
 
         seriesA.Result.Merge(seriesB.Result);
 
-        seriesA.Result.SamplesCount.Should().Be(10);
+        seriesA.Result.Samples.Count.Should().Be(10);
 
         var seriesList = new List<IntTimeSeriesAccumulator>();
         seriesList.Add(await FillFunc());
@@ -145,7 +145,7 @@ public class TimeSeriesTests
             }
         }
 
-        onlineExpertsPerHourTimeSeries.SamplesCount.Should().Be(10);
+        onlineExpertsPerHourTimeSeries.Samples.Count.Should().Be(10);
     }
 
     [Fact]
@@ -246,6 +246,38 @@ public class TimeSeriesTests
 
         seriesA.Result.Samples.Select(s => s.Value).Sum().Should().Be(200);
     }
+
+    [Fact]
+    public async Task Resample()
+    {
+        var seriesFeature = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(2), 100);
+
+        for (var i = 0; i < 100; i++)
+        {
+            seriesFeature.AddNewData(i);
+
+            await Task.Delay(1);
+        }
+
+        seriesFeature.Resample(TimeSpan.FromMilliseconds(4), 100);
+        var sad = seriesFeature;
+    }
+
+    [Fact]
+    public async Task ResampleSummer()
+    {
+        var seriesFeature = new IntTimeSeriesSummer(TimeSpan.FromMilliseconds(2), 100);
+
+        for (var i = 0; i < 100; i++)
+        {
+            seriesFeature.AddNewData(i);
+
+            await Task.Delay(1);
+        }
+
+        seriesFeature.Resample(TimeSpan.FromMilliseconds(4), 100);
+    }
+
 
     [Fact]
     public void MarkupAllSamples()

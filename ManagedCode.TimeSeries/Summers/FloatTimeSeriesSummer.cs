@@ -4,11 +4,11 @@ namespace ManagedCode.TimeSeries.Summers;
 
 public class FloatTimeSeriesSummer : BaseTimeSeriesSummer<float, FloatTimeSeriesSummer>
 {
-    public FloatTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy) : base(sampleInterval, samplesCount, strategy)
+    public FloatTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount, strategy)
     {
     }
 
-    public FloatTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount) : base(sampleInterval, samplesCount, Strategy.Sum)
+    public FloatTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount) : base(sampleInterval, maxSamplesCount, Strategy.Sum)
     {
     }
 

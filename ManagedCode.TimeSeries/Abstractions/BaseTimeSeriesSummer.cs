@@ -16,7 +16,7 @@ public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNum
 {
     private readonly Strategy _strategy;
 
-    protected BaseTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy) : base(sampleInterval, samplesCount)
+    protected BaseTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount)
     {
         _strategy = strategy;
     }
@@ -51,7 +51,22 @@ public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNum
 
     public override void Resample(TimeSpan sampleInterval, int samplesCount)
     {
-        // throw new NotImplementedException();
+        if (sampleInterval <= SampleInterval)
+        {
+            throw new InvalidOperationException();
+        }
+
+        SampleInterval = sampleInterval;
+        MaxSamplesCount = samplesCount;
+
+        var samples = Samples;
+
+        Samples = new Dictionary<DateTimeOffset, TNumber>();
+
+        foreach (var (key, value) in samples)
+        {
+            AddNewData(key, value);
+        }
     }
 
     private TNumber Update(TNumber left, TNumber right)

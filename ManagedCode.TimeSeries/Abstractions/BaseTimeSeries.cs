@@ -6,39 +6,39 @@ namespace ManagedCode.TimeSeries.Abstractions;
 public abstract class BaseTimeSeries<T, TSample, TSelf> : ITimeSeries<T, TSample, TSelf> where TSelf : ITimeSeries<T, TSample, TSelf>
 {
     private const int DefaultSampleCount = 100;
-    private readonly int _samplesCount;
     protected object _sync = new();
 
-    protected BaseTimeSeries(TimeSpan sampleInterval, int samplesCount)
+    protected BaseTimeSeries(TimeSpan sampleInterval, int maxSamplesCount)
     {
-        _samplesCount = samplesCount;
+        MaxSamplesCount = maxSamplesCount;
         SampleInterval = sampleInterval;
         Start = DateTimeOffset.UtcNow.Round(SampleInterval);
         End = Start;
     }
 
-    protected BaseTimeSeries(TimeSpan sampleInterval, int samplesCount, DateTimeOffset start, DateTimeOffset end, DateTimeOffset lastDate)
+    protected BaseTimeSeries(TimeSpan sampleInterval, int maxSamplesCount, DateTimeOffset start, DateTimeOffset end, DateTimeOffset lastDate)
     {
-        _samplesCount = samplesCount;
+        MaxSamplesCount = maxSamplesCount;
         SampleInterval = sampleInterval;
         Start = start.Round(SampleInterval);
         End = end.Round(SampleInterval);
         LastDate = lastDate;
     }
 
-    public Dictionary<DateTimeOffset, TSample> Samples { get; } = new();
+    public Dictionary<DateTimeOffset, TSample> Samples { get; protected set; } = new();
     public DateTimeOffset Start { get; }
     public DateTimeOffset End { get; protected set; }
-    public TimeSpan SampleInterval { get; }
+
+    public TimeSpan SampleInterval { get; protected set; }
+    public int MaxSamplesCount { get; protected set; }
 
     public DateTimeOffset LastDate { get; protected set; }
 
-    public int SamplesCount => Samples.Count;
     public ulong DataCount { get; protected set; }
 
-    public bool IsFull => Samples.Count >= _samplesCount;
+    public bool IsFull => Samples.Count >= MaxSamplesCount;
     public bool IsEmpty => Samples.Count == 0;
-    public bool IsOverflow => Samples.Count > _samplesCount;
+    public bool IsOverflow => Samples.Count > MaxSamplesCount;
 
     public void AddNewData(T data)
     {
@@ -67,7 +67,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> : ITimeSeries<T, TSample
     {
         lock (_sync)
         {
-            if (_samplesCount <= 0)
+            if (MaxSamplesCount <= 0)
             {
                 return;
             }
@@ -81,7 +81,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> : ITimeSeries<T, TSample
 
     public void MarkupAllSamples(MarkupDirection direction = MarkupDirection.Past)
     {
-        var samples = _samplesCount > 0 ? _samplesCount : DefaultSampleCount;
+        var samples = MaxSamplesCount > 0 ? MaxSamplesCount : DefaultSampleCount;
 
         if (direction is MarkupDirection.Past or MarkupDirection.Feature)
         {
@@ -126,7 +126,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> : ITimeSeries<T, TSample
     public void DeleteOverdueSamples()
     {
         var dateTime = DateTimeOffset.UtcNow.Round(SampleInterval);
-        for (int i = 0; i < _samplesCount; i++)
+        for (int i = 0; i < MaxSamplesCount; i++)
         {
             dateTime = dateTime.Subtract(SampleInterval);
         }
@@ -145,8 +145,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> : ITimeSeries<T, TSample
 
     public TSelf PureMerge(IEnumerable<TSelf> accumulators)
     {
-        var empty = Activator.CreateInstance<TSelf>();
-        empty.Resample(SampleInterval, SamplesCount);
+        var empty = (TSelf) Activator.CreateInstance(typeof(TSelf), SampleInterval, MaxSamplesCount)!;
 
         foreach (var accumulator in accumulators)
         {
@@ -166,8 +165,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> : ITimeSeries<T, TSample
 
     public TSelf PureMerge(TSelf accumulator)
     {
-        var empty = Activator.CreateInstance<TSelf>();
-        empty.Resample(SampleInterval, SamplesCount);
+        var empty = (TSelf) Activator.CreateInstance(typeof(TSelf), SampleInterval, MaxSamplesCount)!;
         empty.Merge(accumulator);
 
         return empty;
@@ -180,10 +178,4 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> : ITimeSeries<T, TSample
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public abstract void Merge(TSelf accumulator);
-
-
-    public virtual void Dispose()
-    {
-        //skip
-    }
 }

@@ -1,13 +1,16 @@
+using ManagedCode.TimeSeries.Extensions;
+
 namespace ManagedCode.TimeSeries.Abstractions;
 
 public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Queue<T>, TSelf> where TSelf : ITimeSeries<T, Queue<T>, TSelf>
 {
-    protected BaseTimeSeriesAccumulator(TimeSpan sampleInterval, int samplesCount) : base(sampleInterval, samplesCount)
+    protected BaseTimeSeriesAccumulator(TimeSpan sampleInterval, int maxSamplesCount) : base(sampleInterval, maxSamplesCount)
     {
     }
 
-    protected BaseTimeSeriesAccumulator(TimeSpan sampleInterval, int samplesCount, DateTimeOffset start, DateTimeOffset end, DateTimeOffset lastDate)
-        : base(sampleInterval, samplesCount, start, end, lastDate)
+    protected BaseTimeSeriesAccumulator(TimeSpan sampleInterval, int maxSamplesCount, DateTimeOffset start, DateTimeOffset end,
+        DateTimeOffset lastDate)
+        : base(sampleInterval, maxSamplesCount, start, end, lastDate)
     {
     }
 
@@ -77,6 +80,24 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Qu
 
     public override void Resample(TimeSpan sampleInterval, int samplesCount)
     {
-        // throw new NotImplementedException();
+        if (sampleInterval <= SampleInterval)
+        {
+            throw new InvalidOperationException();
+        }
+
+        SampleInterval = sampleInterval;
+        MaxSamplesCount = samplesCount;
+
+        var samples = Samples;
+
+        Samples = new Dictionary<DateTimeOffset, Queue<T>>();
+
+        foreach (var (key, value) in samples)
+        {
+            foreach (var v in value)
+            {
+                AddNewData(key, v);
+            }
+        }
     }
 }
