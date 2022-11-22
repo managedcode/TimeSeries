@@ -1,7 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
-namespace ManagedCode.TimeSeries;
+namespace ManagedCode.TimeSeries.Abstractions;
 
 public enum Strategy
 {
@@ -11,7 +11,8 @@ public enum Strategy
     Replace,
 }
 
-public abstract class BaseTimeSeriesSummer<TNumber> : BaseTimeSeries<TNumber, TNumber> where TNumber : INumber<TNumber>
+public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNumber, TNumber, TSelf>
+    where TNumber : INumber<TNumber> where TSelf : ITimeSeries<TNumber, TNumber, TSelf>
 {
     private readonly Strategy _strategy;
 
@@ -20,17 +21,17 @@ public abstract class BaseTimeSeriesSummer<TNumber> : BaseTimeSeries<TNumber, TN
         _strategy = strategy;
     }
 
-    protected override void AddData(DateTimeOffset now, TNumber data)
+    protected override void AddData(DateTimeOffset date, TNumber data)
     {
-        if (!Samples.ContainsKey(now))
+        if (!Samples.ContainsKey(date))
         {
-            Samples.Add(now, TNumber.Zero);
+            Samples.Add(date, TNumber.Zero);
         }
 
-        Samples[now] = Update(Samples[now], data);
+        Samples[date] = Update(Samples[date], data);
     }
 
-    public BaseTimeSeriesSummer<TNumber> Merge(BaseTimeSeriesSummer<TNumber> accumulator)
+    public override void Merge(TSelf accumulator)
     {
         DataCount += accumulator.DataCount;
         foreach (var sample in accumulator.Samples.ToArray())
@@ -46,8 +47,11 @@ public abstract class BaseTimeSeriesSummer<TNumber> : BaseTimeSeries<TNumber, TN
         }
 
         CheckSamplesSize();
+    }
 
-        return this;
+    public override void Resample(TimeSpan sampleInterval, int samplesCount)
+    {
+        // throw new NotImplementedException();
     }
 
     private TNumber Update(TNumber left, TNumber right)

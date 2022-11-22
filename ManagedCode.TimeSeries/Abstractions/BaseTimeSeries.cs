@@ -1,9 +1,9 @@
 using System.Runtime.CompilerServices;
 using ManagedCode.TimeSeries.Extensions;
 
-namespace ManagedCode.TimeSeries;
+namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseTimeSeries<T, TSample> : IDisposable
+public abstract class BaseTimeSeries<T, TSample, TSelf> : ITimeSeries<T, TSample, TSelf> where TSelf : ITimeSeries<T, TSample, TSelf>
 {
     private const int DefaultSampleCount = 100;
     private readonly int _samplesCount;
@@ -26,7 +26,7 @@ public abstract class BaseTimeSeries<T, TSample> : IDisposable
         LastDate = lastDate;
     }
 
-    public Dictionary<DateTimeOffset, TSample> Samples { get; protected set; } = new();
+    public Dictionary<DateTimeOffset, TSample> Samples { get; } = new();
     public DateTimeOffset Start { get; }
     public DateTimeOffset End { get; protected set; }
     public TimeSpan SampleInterval { get; }
@@ -49,7 +49,7 @@ public abstract class BaseTimeSeries<T, TSample> : IDisposable
             AddData(rounded, data);
             End = rounded;
             LastDate = DateTimeOffset.UtcNow;
-            CheckSamplesSize();    
+            CheckSamplesSize();
         }
     }
 
@@ -125,13 +125,12 @@ public abstract class BaseTimeSeries<T, TSample> : IDisposable
 
     public void DeleteOverdueSamples()
     {
-    
         var dateTime = DateTimeOffset.UtcNow.Round(SampleInterval);
         for (int i = 0; i < _samplesCount; i++)
         {
             dateTime = dateTime.Subtract(SampleInterval);
         }
- 
+
         lock (_sync)
         {
             foreach (var date in Samples.Keys.ToArray())
@@ -144,8 +143,44 @@ public abstract class BaseTimeSeries<T, TSample> : IDisposable
         }
     }
 
+    public TSelf PureMerge(IEnumerable<TSelf> accumulators)
+    {
+        var empty = Activator.CreateInstance<TSelf>();
+        empty.Resample(SampleInterval, SamplesCount);
+
+        foreach (var accumulator in accumulators)
+        {
+            Merge(accumulator);
+        }
+
+        return empty;
+    }
+
+    public void Merge(IEnumerable<TSelf> accumulators)
+    {
+        foreach (var accumulator in accumulators)
+        {
+            Merge(accumulator);
+        }
+    }
+
+    public TSelf PureMerge(TSelf accumulator)
+    {
+        var empty = Activator.CreateInstance<TSelf>();
+        empty.Resample(SampleInterval, SamplesCount);
+        empty.Merge(accumulator);
+
+        return empty;
+    }
+
+    public abstract void Resample(TimeSpan sampleInterval, int samplesCount);
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected abstract void AddData(DateTimeOffset now, T data);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public abstract void Merge(TSelf accumulator);
+
 
     public virtual void Dispose()
     {

@@ -29,39 +29,40 @@ public class TimeSeriesTests
             }
         }
     }
-    
-    [Fact]
-    public async Task AccumulatorByString()
-    {
-        var rnd = new Random();
-        var series = new StringTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1));
 
-        var dt = DateTimeOffset.Now;
-        series.AddNewData(dt, "1");
-        series.AddNewData(dt, "1");
-        series.AddNewData(dt, "2");
-        series.AddNewData(dt, "3");
-        series.AddNewData(dt, "3");
-        series.AddNewData(dt, "2");
-
-
-        dt = dt.AddHours(5);
-        series.AddNewData(dt, "1");
-        series.AddNewData(dt, "1");
-        series.AddNewData(dt, "2");
-        series.AddNewData(dt, "3");
-        series.AddNewData(dt, "3");
-        series.AddNewData(dt, "2");
-
-        series.DataCount.Should().Be(12);
-        series.Samples.First().Value.Count.Should().Be(3);
-        series.Samples.Last().Value.Count.Should().Be(3);
-    }
+    // [Fact]
+    // public async Task AccumulatorByString()
+    // {
+    //     var rnd = new Random();
+    //     var series = new StringTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1));
+    //
+    //     var dt = DateTimeOffset.Now;
+    //     series.AddNewData(dt, "1");
+    //     series.AddNewData(dt, "1");
+    //     series.AddNewData(dt, "2");
+    //     series.AddNewData(dt, "3");
+    //     series.AddNewData(dt, "3");
+    //     series.AddNewData(dt, "2");
+    //
+    //
+    //     dt = dt.AddHours(5);
+    //     series.AddNewData(dt, "1");
+    //     series.AddNewData(dt, "1");
+    //     series.AddNewData(dt, "2");
+    //     series.AddNewData(dt, "3");
+    //     series.AddNewData(dt, "3");
+    //     series.AddNewData(dt, "2");
+    //
+    //     series.DataCount.Should().Be(12);
+    //     series.Samples.First().Value.Count.Should().Be(3);
+    //     series.Samples.Last().Value.Count.Should().Be(3);
+    // }
 
     [Fact]
     public async Task AccumulatorLimit()
     {
         var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10);
+
         for (var i = 0; i < 1000; i++)
         {
             await Task.Delay(new Random().Next(1, 5));
@@ -90,7 +91,7 @@ public class TimeSeriesTests
 
         series.IsFull.Should().BeTrue();
     }
-    
+
     [Fact]
     public void IsEmpty()
     {
@@ -177,44 +178,44 @@ public class TimeSeriesTests
             count++;
         }
 
-        series.DataCount.Should().Be((ulong)count);
+        series.DataCount.Should().Be((ulong) count);
     }
 
-    [Fact]
-    public async Task SummerGroup()
-    {
-        var interval = TimeSpan.FromSeconds(0.1);
-        var series = new IntGroupTimeSeriesSummer(interval, 100,  Strategy.Sum, true);
-        var count = 0;
-        for (var i = 0; i < 100; i++)
-        {
-            await Task.Delay(new Random().Next(10, 50));
-            series.AddNewData((i % 10).ToString(), i);
-            count++;
-        }
+    // [Fact]
+    // public async Task SummerGroup()
+    // {
+    //     var interval = TimeSpan.FromSeconds(0.1);
+    //     var series = new IntGroupTimeSeriesSummer(interval, 100, Strategy.Sum, true);
+    //     var count = 0;
+    //     for (var i = 0; i < 100; i++)
+    //     {
+    //         await Task.Delay(new Random().Next(10, 50));
+    //         series.AddNewData((i % 10).ToString(), i);
+    //         count++;
+    //     }
+    //
+    //     series.TimeSeries.Count.Should().BeGreaterThan(0);
+    //     await Task.Delay(interval * 102);
+    //
+    //     series.TimeSeries.Count.Should().Be(0);
+    // }
+    //
+    // [Fact]
+    // public async Task SummerGroupMax()
+    // {
+    //     var interval = TimeSpan.FromSeconds(5);
+    //     var series = new IntGroupTimeSeriesSummer(interval, 100, Strategy.Max, true);
+    //     var count = 0;
+    //     for (var i = 0; i < 100; i++)
+    //     {
+    //         series.AddNewData("host", i);
+    //         count++;
+    //     }
+    //
+    //     series.TimeSeries.Count.Should().Be(1);
+    //     series.TimeSeries.Values.SingleOrDefault().Samples.SingleOrDefault().Value.Should().Be(99);
+    // }
 
-        series.TimeSeries.Count.Should().BeGreaterThan(0);
-        await Task.Delay(interval * 102);
-        
-        series.TimeSeries.Count.Should().Be(0);
-    }
-    
-    [Fact]
-    public async Task SummerGroupMax()
-    {
-        var interval = TimeSpan.FromSeconds(5);
-        var series = new IntGroupTimeSeriesSummer(interval, 100,  Strategy.Max, true);
-        var count = 0;
-        for (var i = 0; i < 100; i++)
-        {
-            series.AddNewData("host", i);
-            count++;
-        }
-
-        series.TimeSeries.Count.Should().Be(1);
-        series.TimeSeries.Values.SingleOrDefault().Samples.SingleOrDefault().Value.Should().Be(99);
-    }
-    
     [Fact]
     public async Task SummerMerge()
     {

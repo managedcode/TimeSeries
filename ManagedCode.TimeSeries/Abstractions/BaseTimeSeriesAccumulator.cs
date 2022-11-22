@@ -1,6 +1,6 @@
-namespace ManagedCode.TimeSeries;
+namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseTimeSeriesAccumulator<T> : BaseTimeSeries<T, Queue<T>>
+public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Queue<T>, TSelf> where TSelf : ITimeSeries<T, Queue<T>, TSelf>
 {
     protected BaseTimeSeriesAccumulator(TimeSpan sampleInterval, int samplesCount) : base(sampleInterval, samplesCount)
     {
@@ -11,24 +11,23 @@ public abstract class BaseTimeSeriesAccumulator<T> : BaseTimeSeries<T, Queue<T>>
     {
     }
 
-    protected override void AddData(DateTimeOffset now, T data)
+    protected override void AddData(DateTimeOffset date, T data)
     {
-        if (!Samples.ContainsKey(now))
+        if (!Samples.ContainsKey(date))
         {
-            Samples.Add(now, new Queue<T>());
+            Samples.Add(date, new Queue<T>());
         }
 
-        Samples[now].Enqueue(data);
+        Samples[date].Enqueue(data);
     }
 
-    public BaseTimeSeriesAccumulator<T> Trim()
+    public void Trim()
     {
         TrimStart();
         TrimEnd();
-        return this;
     }
 
-    public BaseTimeSeriesAccumulator<T> TrimStart()
+    public void TrimStart()
     {
         foreach (var item in Samples.ToArray())
         {
@@ -39,11 +38,9 @@ public abstract class BaseTimeSeriesAccumulator<T> : BaseTimeSeries<T, Queue<T>>
 
             Samples.Remove(item.Key);
         }
-
-        return this;
     }
 
-    public BaseTimeSeriesAccumulator<T> TrimEnd()
+    public void TrimEnd()
     {
         foreach (var item in Samples.Reverse().ToArray())
         {
@@ -54,11 +51,9 @@ public abstract class BaseTimeSeriesAccumulator<T> : BaseTimeSeries<T, Queue<T>>
 
             Samples.Remove(item.Key);
         }
-
-        return this;
     }
 
-    public BaseTimeSeriesAccumulator<T> Merge(BaseTimeSeriesAccumulator<T> accumulator)
+    public override void Merge(TSelf accumulator)
     {
         DataCount += accumulator.DataCount;
         LastDate = accumulator.LastDate > LastDate ? accumulator.LastDate : LastDate;
@@ -78,7 +73,10 @@ public abstract class BaseTimeSeriesAccumulator<T> : BaseTimeSeries<T, Queue<T>>
         }
 
         CheckSamplesSize();
+    }
 
-        return this;
+    public override void Resample(TimeSpan sampleInterval, int samplesCount)
+    {
+        // throw new NotImplementedException();
     }
 }
