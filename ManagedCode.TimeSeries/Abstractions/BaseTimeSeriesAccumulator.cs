@@ -2,7 +2,7 @@ using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Queue<T>, TSelf> where TSelf : ITimeSeries<T, Queue<T>, TSelf>
+public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Queue<T>, TSelf> where TSelf : BaseTimeSeries<T, Queue<T>, TSelf>
 {
     protected BaseTimeSeriesAccumulator(TimeSpan sampleInterval, int maxSamplesCount) : base(sampleInterval, maxSamplesCount)
     {

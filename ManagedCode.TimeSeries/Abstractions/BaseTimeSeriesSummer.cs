@@ -12,7 +12,7 @@ public enum Strategy
 }
 
 public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNumber, TNumber, TSelf>
-    where TNumber : INumber<TNumber> where TSelf : ITimeSeries<TNumber, TNumber, TSelf>
+    where TNumber : INumber<TNumber> where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
 {
     private readonly Strategy _strategy;
 

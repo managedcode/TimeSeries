@@ -2,34 +2,25 @@ using System.Diagnostics.Contracts;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public interface ITimeSeries<in T, TSample, TSelf> : ITimeSeries<TSample>
-    where TSelf : ITimeSeries<T, TSample, TSelf>
+public interface ITimeSeries<in T, TSelf> where TSelf : ITimeSeries<T, TSelf>
 {
-    void Resample(TimeSpan sampleInterval, int samplesCount);
-
     void AddNewData(T data);
+    void AddNewData(DateTimeOffset dateTimeOffset, T data);
+
+    void DeleteOverdueSamples();
+    void MarkupAllSamples(MarkupDirection direction = MarkupDirection.Past);
+
+    [Pure]
+    TSelf Rebase(TSelf accumulator);
+
+    [Pure]
+    TSelf Rebase(IEnumerable<TSelf> accumulators);
 
     void Merge(TSelf accumulator);
-
-    [Pure]
-    TSelf PureMerge(IEnumerable<TSelf> accumulators);
-
     void Merge(IEnumerable<TSelf> accumulators);
 
-    [Pure]
-    TSelf PureMerge(TSelf accumulator);
-}
+    void Resample(TimeSpan sampleInterval, int samplesCount);
 
-public interface ITimeSeries<TSample>
-{
-    public Dictionary<DateTimeOffset, TSample> Samples { get; }
-    public DateTimeOffset Start { get; }
-    public DateTimeOffset End { get; }
-    public DateTimeOffset LastDate { get; }
-    public TimeSpan SampleInterval { get; }
-    public int MaxSamplesCount { get; }
-    public ulong DataCount { get; }
-    public bool IsFull { get; }
-    public bool IsEmpty { get; }
-    public bool IsOverflow { get; }
+    [Pure]
+    static abstract TSelf Empty(TimeSpan? sampleInterval = null, int maxSamplesCount = 0);
 }
