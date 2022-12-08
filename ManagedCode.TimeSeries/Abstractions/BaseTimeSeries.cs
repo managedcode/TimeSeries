@@ -3,10 +3,11 @@ using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseTimeSeries<T, TSample, TSelf> : ITimeSeries<T, TSelf> where TSelf : BaseTimeSeries<T, TSample, TSelf>
+public abstract class BaseTimeSeries<T, TSample, TSelf> : 
+    ITimeSeries<T, TSelf> where TSelf : BaseTimeSeries<T, TSample, TSelf>
 {
     private const int DefaultSampleCount = 100;
-    protected readonly object _sync = new();
+    private readonly object _sync = new();
 
     protected BaseTimeSeries(TimeSpan sampleInterval, int maxSamplesCount)
     {

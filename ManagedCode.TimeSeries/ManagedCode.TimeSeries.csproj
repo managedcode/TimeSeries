@@ -1,10 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+        <LangVersion>11</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <LangVersion>11</LangVersion>
-        <TargetFramework>net7.0</TargetFramework>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <!--NuGet-->
+    <PropertyGroup>
+        <Title>ManagedCode.TimeSeries</Title>
+        <PackageId>ManagedCode.TimeSeries</PackageId>
+        <Description>TimeSeries</Description>
+        <PackageTags>managedcode, TimeSeries</PackageTags>
     </PropertyGroup>
 
 </Project>

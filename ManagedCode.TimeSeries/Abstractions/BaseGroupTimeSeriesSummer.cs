@@ -2,22 +2,17 @@ using System.Numerics;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseGroupTimeSeriesSummer<TNumber, TSummer, TSelf>
+public abstract class BaseGroupTimeSeriesSummer<TNumber, TSummer, TSelf> : IDisposable
     where TSummer : BaseTimeSeriesSummer<TNumber, TSelf>
     where TNumber : INumber<TNumber>
     where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
 {
-    private readonly Strategy _strategy;
-    private readonly bool _deleteOverdueSamples;
-    private readonly Timer _timer;
+    private readonly Timer? _timer;
     public readonly Dictionary<string, TSummer> TimeSeries = new();
 
     protected BaseGroupTimeSeriesSummer(TimeSpan sampleInterval, bool deleteOverdueSamples)
     {
-        if (deleteOverdueSamples)
-        {
-            _timer = new Timer(Callback, null, sampleInterval, sampleInterval);
-        }
+        _timer = deleteOverdueSamples ? new Timer(Callback, null, sampleInterval, sampleInterval) : null;
     }
 
     private void Callback(object? state)

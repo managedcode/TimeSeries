@@ -97,7 +97,6 @@ public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNum
     public virtual TNumber Average()
     {
         var sum = Sum();
-
         return TNumber.CreateChecked(sum) / TNumber.CreateChecked(Samples.Count);
     }
 

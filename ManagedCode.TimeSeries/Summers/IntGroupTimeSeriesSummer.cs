@@ -1,3 +1,5 @@
+// using ManagedCode.TimeSeries.Abstractions;
+//
 // namespace ManagedCode.TimeSeries.Summers;
 //
 // public class IntGroupTimeSeriesSummer : BaseGroupTimeSeriesSummer<int, IntTimeSeriesSummer>

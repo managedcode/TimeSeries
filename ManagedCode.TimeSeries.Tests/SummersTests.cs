@@ -5,7 +5,7 @@ using Xunit;
 
 namespace ManagedCode.TimeSeries.Tests;
 
-public class TimeSeriesTests
+public class SummersTests
 {
     [Fact]
     public async Task Accumulator()
