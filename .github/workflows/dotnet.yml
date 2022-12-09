@@ -39,8 +39,8 @@ jobs:
           output: 'lcov.info'
           outputFormat: 'lcov'
           excludes: '[program]*,[test]test.*'
-      - name: coveralls
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{secrets.GITHUB_TOKEN }}
-          path-to-lcov: ManagedCode.TimeSeries.Tests/lcov.info  
+#      - name: coveralls
+#        uses: coverallsapp/github-action@master
+#        with:
+#          github-token: ${{secrets.GITHUB_TOKEN }}
+#          path-to-lcov: ManagedCode.TimeSeries.Tests/lcov.info  
