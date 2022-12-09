@@ -2,8 +2,8 @@ using System.Runtime.CompilerServices;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNumber, TNumber, TSelf>
-    where TNumber : ISummerItem<TNumber> where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
+public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<TSummerItem, TSummerItem, TSelf>
+    where TSummerItem : ISummerItem<TSummerItem> where TSelf : BaseTimeSeries<TSummerItem, TSummerItem, TSelf>
 {
     private readonly Strategy _strategy;
 
@@ -12,11 +12,11 @@ public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNum
         _strategy = strategy;
     }
 
-    protected override void AddData(DateTimeOffset date, TNumber data)
+    protected override void AddData(DateTimeOffset date, TSummerItem data)
     {
         if (!Samples.ContainsKey(date))
         {
-            Samples.Add(date, TNumber.Zero);
+            Samples.Add(date, TSummerItem.Zero);
         }
 
         Samples[date] = Update(Samples[date], data);
@@ -52,7 +52,7 @@ public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNum
 
         var samples = Samples;
 
-        Samples = new Dictionary<DateTimeOffset, TNumber>();
+        Samples = new Dictionary<DateTimeOffset, TSummerItem>();
 
         foreach (var (key, value) in samples)
         {
@@ -60,13 +60,13 @@ public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNum
         }
     }
 
-    private TNumber Update(TNumber left, TNumber right)
+    private TSummerItem Update(TSummerItem left, TSummerItem right)
     {
         return _strategy switch
         {
             Strategy.Sum => left + right,
-            Strategy.Min => TNumber.Min(left, right),
-            Strategy.Max => TNumber.Max(left, right),
+            Strategy.Min => TSummerItem.Min(left, right),
+            Strategy.Max => TSummerItem.Max(left, right),
             Strategy.Replace => right,
             _ => throw new ArgumentOutOfRangeException()
         };
@@ -75,17 +75,17 @@ public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNum
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual void Increment()
     {
-        AddNewData(TNumber.One);
+        AddNewData(TSummerItem.One);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual void Decrement()
     {
-        AddNewData(-TNumber.One);
+        AddNewData(-TSummerItem.One);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public virtual TNumber? Min()
+    public virtual TSummerItem? Min()
     {
         lock (Samples)
         {
@@ -94,7 +94,7 @@ public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNum
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public virtual TNumber? Max()
+    public virtual TSummerItem? Max()
     {
         lock (Samples)
         {
@@ -103,11 +103,11 @@ public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNum
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public virtual TNumber Sum()
+    public virtual TSummerItem Sum()
     {
         lock (Samples)
         {
-            return Samples.Aggregate(TNumber.Zero, (current, sample) => current + sample.Value);
+            return Samples.Aggregate(TSummerItem.Zero, (current, sample) => current + sample.Value);
         }
     }
 }

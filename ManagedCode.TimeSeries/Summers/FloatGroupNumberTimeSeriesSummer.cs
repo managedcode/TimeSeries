@@ -2,13 +2,13 @@ using ManagedCode.TimeSeries.Abstractions;
 
 namespace ManagedCode.TimeSeries.Summers;
 
-public class DoubleGroupTimeSeriesSummer : BaseGroupNumberTimeSeriesSummer<double, DoubleTimeSeriesSummer, DoubleGroupTimeSeriesSummer>
+public class FloatGroupNumberTimeSeriesSummer : BaseGroupNumberTimeSeriesSummer<float, FloatTimeSeriesSummer, FloatGroupNumberTimeSeriesSummer>
 {
     private readonly TimeSpan _sampleInterval;
     private readonly int _samplesCount;
     private readonly Strategy _strategy;
 
-    public DoubleGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy, bool deleteOverdueSamples) : base(sampleInterval,
+    public FloatGroupNumberTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy, bool deleteOverdueSamples) : base(sampleInterval,
         deleteOverdueSamples)
     {
         _sampleInterval = sampleInterval;
@@ -16,7 +16,7 @@ public class DoubleGroupTimeSeriesSummer : BaseGroupNumberTimeSeriesSummer<doubl
         _strategy = strategy;
     }
 
-    public override double Average()
+    public override float Average()
     {
         lock (TimeSeries)
         {
@@ -27,7 +27,7 @@ public class DoubleGroupTimeSeriesSummer : BaseGroupNumberTimeSeriesSummer<doubl
         }
     }
 
-    public override double Min()
+    public override float Min()
     {
         lock (TimeSeries)
         {
@@ -38,7 +38,7 @@ public class DoubleGroupTimeSeriesSummer : BaseGroupNumberTimeSeriesSummer<doubl
         }
     }
 
-    public override double Max()
+    public override float Max()
     {
         lock (TimeSeries)
         {
@@ -49,7 +49,7 @@ public class DoubleGroupTimeSeriesSummer : BaseGroupNumberTimeSeriesSummer<doubl
         }
     }
 
-    public override double Sum()
+    public override float Sum()
     {
         lock (TimeSeries)
         {
@@ -60,8 +60,8 @@ public class DoubleGroupTimeSeriesSummer : BaseGroupNumberTimeSeriesSummer<doubl
         }
     }
 
-    protected override DoubleTimeSeriesSummer CreateSummer()
+    protected override FloatTimeSeriesSummer CreateSummer()
     {
-        throw new NotImplementedException();
+        return new FloatTimeSeriesSummer(_sampleInterval, _samplesCount, _strategy);
     }
 }

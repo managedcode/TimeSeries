@@ -2,15 +2,15 @@ using System.Numerics;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseGroupTimeSeriesSummer<TNumber, TSummer, TSelf> : IDisposable
-    where TSummer : BaseNumberTimeSeriesSummer<TNumber, TSelf>
+public abstract class BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf> : IDisposable
+    where TSummer : BaseNumberTimeSeriesSummer<TNumber, TSummer>
     where TNumber : INumber<TNumber>
-    where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
+    where TSelf : BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf>
 {
     private readonly Timer? _timer;
     public readonly Dictionary<string, TSummer> TimeSeries = new();
 
-    protected BaseGroupTimeSeriesSummer(TimeSpan sampleInterval, bool deleteOverdueSamples)
+    protected BaseGroupNumberTimeSeriesSummer(TimeSpan sampleInterval, bool deleteOverdueSamples)
     {
         _timer = deleteOverdueSamples ? new Timer(Callback, null, sampleInterval, sampleInterval) : null;
     }
