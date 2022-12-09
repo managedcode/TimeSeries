@@ -28,17 +28,8 @@ jobs:
         run: dotnet restore
       - name: Build
         run: dotnet build --no-restore
-      - name: Test
-        run: dotnet test --no-build --logger 'trx;LogFileName=test-results.trx'
-      - name: Collect Code Coverage
-        run: dotnet test --no-build --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:CoverletOutput=ManagedCode.TimeSeries.Tests/lcov.info
-      - name : coverlet
-        uses: b3b00/coverlet-action@1.1.9
-        with:
-          testProject: 'ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj'
-          output: 'lcov.info'
-          outputFormat: 'lcov'
-          excludes: '[program]*,[test]test.*'
+      - name: Test and сollect Code Coverage
+        run: dotnet test -p:CollectCoverage=true -p:CoverletOutputFormat=lcov -p:CoverletOutput=ManagedCode.Communication.Tests/
       - name: coveralls
         uses: coverallsapp/github-action@master
         with:
