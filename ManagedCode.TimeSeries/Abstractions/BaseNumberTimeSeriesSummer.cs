@@ -1,13 +1,14 @@
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNumber, TNumber, TSelf>
-    where TNumber : ISummerItem<TNumber> where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
+public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNumber, TNumber, TSelf>
+    where TNumber : INumber<TNumber> where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
 {
     private readonly Strategy _strategy;
 
-    protected BaseTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount)
+    protected BaseNumberTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount)
     {
         _strategy = strategy;
     }
@@ -82,6 +83,13 @@ public abstract class BaseTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNum
     public virtual void Decrement()
     {
         AddNewData(-TNumber.One);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public virtual TNumber Average()
+    {
+        var sum = Sum();
+        return TNumber.CreateChecked(sum) / TNumber.CreateChecked(Samples.Count);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

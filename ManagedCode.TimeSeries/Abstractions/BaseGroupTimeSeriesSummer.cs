@@ -3,7 +3,7 @@ using System.Numerics;
 namespace ManagedCode.TimeSeries.Abstractions;
 
 public abstract class BaseGroupTimeSeriesSummer<TNumber, TSummer, TSelf> : IDisposable
-    where TSummer : BaseTimeSeriesSummer<TNumber, TSelf>
+    where TSummer : BaseNumberTimeSeriesSummer<TNumber, TSelf>
     where TNumber : INumber<TNumber>
     where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
 {

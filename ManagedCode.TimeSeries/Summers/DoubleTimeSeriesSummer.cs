@@ -2,7 +2,7 @@ using ManagedCode.TimeSeries.Abstractions;
 
 namespace ManagedCode.TimeSeries.Summers;
 
-public class DoubleTimeSeriesSummer : BaseTimeSeriesSummer<double, DoubleTimeSeriesSummer>
+public class DoubleTimeSeriesSummer : BaseNumberTimeSeriesSummer<double, DoubleTimeSeriesSummer>
 {
     public DoubleTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount, strategy)
     {
