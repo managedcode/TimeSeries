@@ -32,13 +32,13 @@ jobs:
         run: dotnet test --no-build --logger 'trx;LogFileName=test-results.trx'
       - name: Collect Code Coverage
         run: dotnet test --no-build --verbosity normal /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:CoverletOutput=ManagedCode.TimeSeries.Tests/lcov.info
-      - name : coverlet
-        uses: b3b00/coverlet-action@1.1.9
-        with:
-          testProject: 'ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj'
-          output: 'lcov.info'
-          outputFormat: 'lcov'
-          excludes: '[program]*,[test]test.*'
+#      - name : coverlet
+#        uses: b3b00/coverlet-action@1.1.9
+#        with:
+#          testProject: 'ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj'
+#          output: 'lcov.info'
+#          outputFormat: 'lcov'
+#          excludes: '[program]*,[test]test.*'
 #      - name: coveralls
 #        uses: coverallsapp/github-action@master
 #        with:
