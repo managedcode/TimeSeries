@@ -24,7 +24,7 @@ jobs:
     - name: Build
       run: dotnet build --configuration Release
     - name: Pack
-      run: dotnet pack --configuration Release
+      run: dotnet pack -p:IncludeSymbols=false -p:SymbolPackageFormat=snupkg --configuration Release
 
     - name: publish nuget packages
       run: |
