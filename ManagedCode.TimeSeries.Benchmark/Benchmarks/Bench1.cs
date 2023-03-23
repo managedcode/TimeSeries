@@ -11,10 +11,9 @@ public class Bench1
     [Benchmark]
     public async Task Int_1000()
     {
-        var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1));
+        var series = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(50));
         for (var i = 0; i < 1000; i++)
         {
-            await Task.Delay(1);
             series.AddNewData(i);
         }
     }
@@ -22,10 +21,19 @@ public class Bench1
     [Benchmark]
     public async Task Int_100_000()
     {
-        var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1));
+        var series = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(50));
         for (var i = 0; i < 100_000; i++)
         {
-            await Task.Delay(1);
+            series.AddNewData(i);
+        }
+    }
+    
+    [Benchmark]
+    public async Task Int_10_000_000()
+    {
+        var series = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(50));
+        for (var i = 0; i < 10_000_000; i++)
+        {
             series.AddNewData(i);
         }
     }
