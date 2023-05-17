@@ -7,7 +7,7 @@ public abstract class BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf> :
     where TNumber : INumber<TNumber>
     where TSelf : BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf>
 {
-    private readonly Timer? _timer;
+    internal readonly Timer? _timer;
     public readonly Dictionary<string, TSummer> TimeSeries = new();
 
     protected BaseGroupNumberTimeSeriesSummer(TimeSpan sampleInterval, bool deleteOverdueSamples)

@@ -27,7 +27,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
     }
 
     public Dictionary<DateTimeOffset, TSample> Samples { get; protected set; } = new();
-    public DateTimeOffset Start { get; }
+    public DateTimeOffset Start { get;  internal set; }
     public DateTimeOffset End { get; protected set; }
 
     public TimeSpan SampleInterval { get; protected set; }
@@ -37,6 +37,18 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
     public ulong DataCount { get; protected set; }
 
+    internal void InitInternal(Dictionary<DateTimeOffset, TSample> samples, 
+        DateTimeOffset start , DateTimeOffset end, 
+        DateTimeOffset lastDate, 
+        ulong dataCount)
+    {
+        Samples = samples;
+        Start = start;
+        End = end;
+        LastDate = lastDate;
+        DataCount = dataCount;
+    }
+    
     public bool IsFull => Samples.Count >= MaxSamplesCount;
     public bool IsEmpty => Samples.Count == 0;
     public bool IsOverflow => Samples.Count > MaxSamplesCount;

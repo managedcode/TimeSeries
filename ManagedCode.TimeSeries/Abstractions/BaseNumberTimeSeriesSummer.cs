@@ -6,12 +6,12 @@ namespace ManagedCode.TimeSeries.Abstractions;
 public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNumber, TNumber, TSelf>
     where TNumber : INumber<TNumber> where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
 {
-    private readonly Strategy _strategy;
-
     protected BaseNumberTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount)
     {
-        _strategy = strategy;
+        Strategy = strategy;
     }
+    
+    public Strategy Strategy { get; protected set; }
 
     protected override void AddData(DateTimeOffset date, TNumber data)
     {
@@ -63,7 +63,7 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
 
     private TNumber Update(TNumber left, TNumber right)
     {
-        return _strategy switch
+        return Strategy switch
         {
             Strategy.Sum => left + right,
             Strategy.Min => TNumber.Min(left, right),

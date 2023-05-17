@@ -8,6 +8,10 @@
         <IsPackable>true</IsPackable>
     </PropertyGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="ManagedCode.TimeSeries.Orleans"/>
+    </ItemGroup>
+
     <PropertyGroup>
         <CollectCoverage>true</CollectCoverage>
         <ExcludeByAttribute>GeneratedCodeAttribute</ExcludeByAttribute>
