@@ -56,12 +56,48 @@ public class AccumulatorsTests
             }
         }
     }
+
+
+
     
     
     
-    
-    
-    
+    [Fact]
+    public void GroupAccumulatorSupportsMultipleKeys()
+    {
+        var group = new IntGroupTimeSeriesAccumulator(TimeSpan.FromMilliseconds(50), maxSamplesCount: 10, deleteOverdueSamples: false);
+        var origin = DateTimeOffset.UtcNow;
+
+        group.AddNewData("alpha", origin, 1);
+        group.AddNewData("alpha", origin.AddMilliseconds(60), 2);
+        group.AddNewData("beta", origin, 5);
+
+        group.TryGet("alpha", out var alphaAccumulator).Should().BeTrue();
+        alphaAccumulator!.DataCount.Should().Be(2);
+        alphaAccumulator.Samples.Should().HaveCount(2);
+
+        var snapshot = group.Snapshot();
+        snapshot.Count.Should().Be(2);
+
+        group.Remove("beta").Should().BeTrue();
+        group.TryGet("beta", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void TrimRemovesEmptyBoundarySamples()
+    {
+        var interval = TimeSpan.FromSeconds(1);
+        var series = new IntTimeSeriesAccumulator(interval, maxSamplesCount: 3);
+
+        series.MarkupAllSamples();
+        series.AddNewData(series.Start, 7);
+
+        series.Trim();
+
+        series.Samples.Should().HaveCount(1);
+        var queue = series.Samples.Single().Value;
+        queue.Should().ContainSingle(value => value == 7);
+    }
     
     
     

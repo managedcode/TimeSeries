@@ -1,13 +1,16 @@
+using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
 public abstract class BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf> : IDisposable
     where TSummer : BaseNumberTimeSeriesSummer<TNumber, TSummer>
-    where TNumber : INumber<TNumber>
+    where TNumber : struct, INumber<TNumber>
     where TSelf : BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf>
 {
     internal readonly Timer? _timer;
+    protected Lock SyncRoot = new();
     public readonly Dictionary<string, TSummer> TimeSeries = new();
 
     protected BaseGroupNumberTimeSeriesSummer(TimeSpan sampleInterval, bool deleteOverdueSamples)
@@ -17,14 +20,30 @@ public abstract class BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf> :
 
     private void Callback(object? state)
     {
-        foreach (var summer in TimeSeries.ToArray())
+        lock (SyncRoot)
         {
-            summer.Value.DeleteOverdueSamples();
-            lock (TimeSeries)
+            if (TimeSeries.Count == 0)
             {
-                if (summer.Value.IsEmpty)
+                return;
+            }
+
+            var keys = new List<string>(TimeSeries.Count);
+            foreach (var pair in TimeSeries)
+            {
+                keys.Add(pair.Key);
+            }
+
+            foreach (var key in keys)
+            {
+                if (!TimeSeries.TryGetValue(key, out var summer))
                 {
-                    TimeSeries.Remove(summer.Key);
+                    continue;
+                }
+
+                summer.DeleteOverdueSamples();
+                if (summer.IsEmpty)
+                {
+                    TimeSeries.Remove(key);
                 }
             }
         }
@@ -32,7 +51,7 @@ public abstract class BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf> :
 
     public virtual void AddNewData(string key, TNumber value)
     {
-        lock (TimeSeries)
+        lock (SyncRoot)
         {
             if (TimeSeries.TryGetValue(key, out var summer))
             {
@@ -49,7 +68,7 @@ public abstract class BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf> :
 
     public virtual void Increment(string key)
     {
-        lock (TimeSeries)
+        lock (SyncRoot)
         {
             if (TimeSeries.TryGetValue(key, out var summer))
             {
@@ -66,7 +85,7 @@ public abstract class BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf> :
 
     public virtual void Decrement(string key)
     {
-        lock (TimeSeries)
+        lock (SyncRoot)
         {
             if (TimeSeries.TryGetValue(key, out var summer))
             {

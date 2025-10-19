@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="ManagedCode.TimeSeries.Benchmark/ManagedCode.TimeSeries.Benchmark.csproj" />
+  <Project Path="ManagedCode.TimeSeries.Orleans/ManagedCode.TimeSeries.Orleans.csproj" />
+  <Project Path="ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj" />
+  <Project Path="ManagedCode.TimeSeries/ManagedCode.TimeSeries.csproj" />
+</Solution>

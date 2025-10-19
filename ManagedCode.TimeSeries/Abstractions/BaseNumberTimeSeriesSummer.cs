@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace ManagedCode.TimeSeries.Abstractions;
 
 public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNumber, TNumber, TSelf>
-    where TNumber : INumber<TNumber> where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
+    where TNumber : struct, INumber<TNumber> where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
 {
     protected BaseNumberTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount)
     {
@@ -15,30 +15,33 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
 
     protected override void AddData(DateTimeOffset date, TNumber data)
     {
-        if (!Samples.ContainsKey(date))
-        {
-            Samples.Add(date, TNumber.Zero);
-        }
-
-        Samples[date] = Update(Samples[date], data);
+        ref var sample = ref GetOrCreateSample(date, out _);
+        sample = Update(sample, data);
     }
 
     public override void Merge(TSelf accumulator)
     {
-        DataCount += accumulator.DataCount;
-        foreach (var sample in accumulator.Samples.ToArray())
+        if (accumulator is null)
         {
-            if (Samples.ContainsKey(sample.Key))
-            {
-                Samples[sample.Key] = Update(Samples[sample.Key], sample.Value);
-            }
-            else
-            {
-                Samples.Add(sample.Key, sample.Value);
-            }
+            return;
         }
 
-        CheckSamplesSize();
+        lock (SyncRoot)
+        {
+            DataCount += accumulator.DataCount;
+            if (accumulator.LastDate > LastDate)
+            {
+                LastDate = accumulator.LastDate;
+            }
+
+            foreach (var sample in accumulator.Samples)
+            {
+                ref var target = ref GetOrCreateSample(sample.Key, out var created);
+                target = created ? sample.Value : Update(target, sample.Value);
+            }
+
+            CheckSamplesSize();
+        }
     }
 
     public override void Resample(TimeSpan sampleInterval, int samplesCount)
@@ -48,16 +51,18 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
             throw new InvalidOperationException();
         }
 
-        SampleInterval = sampleInterval;
-        MaxSamplesCount = samplesCount;
-
-        var samples = Samples;
-
-        Samples = new Dictionary<DateTimeOffset, TNumber>();
-
-        foreach (var (key, value) in samples)
+        lock (SyncRoot)
         {
-            AddNewData(key, value);
+            SampleInterval = sampleInterval;
+            MaxSamplesCount = samplesCount;
+
+            var snapshot = Samples;
+            ResetSamplesStorage();
+
+            foreach (var (key, value) in snapshot)
+            {
+                AddNewData(key, value);
+            }
         }
     }
 
@@ -88,34 +93,81 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber Average()
     {
-        var sum = Sum();
-        return TNumber.CreateChecked(sum) / TNumber.CreateChecked(Samples.Count);
+        lock (SyncRoot)
+        {
+            if (Samples.Count == 0)
+            {
+                return TNumber.Zero;
+            }
+
+            var total = TNumber.Zero;
+            foreach (var value in Samples.Values)
+            {
+                total += value;
+            }
+
+            return total / TNumber.CreateChecked(Samples.Count);
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber? Min()
     {
-        lock (Samples)
+        lock (SyncRoot)
         {
-            return Samples.Values.Min();
+            if (Samples.Count == 0)
+            {
+                return null;
+            }
+
+            var enumerator = Samples.Values.GetEnumerator();
+            enumerator.MoveNext();
+            var min = enumerator.Current;
+
+            while (enumerator.MoveNext())
+            {
+                min = TNumber.Min(min, enumerator.Current);
+            }
+
+            return min;
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber? Max()
     {
-        lock (Samples)
+        lock (SyncRoot)
         {
-            return Samples.Values.Max();
+            if (Samples.Count == 0)
+            {
+                return null;
+            }
+
+            var enumerator = Samples.Values.GetEnumerator();
+            enumerator.MoveNext();
+            var max = enumerator.Current;
+
+            while (enumerator.MoveNext())
+            {
+                max = TNumber.Max(max, enumerator.Current);
+            }
+
+            return max;
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber Sum()
     {
-        lock (Samples)
+        lock (SyncRoot)
         {
-            return Samples.Aggregate(TNumber.Zero, (current, sample) => current + sample.Value);
+            var total = TNumber.Zero;
+            foreach (var sample in Samples.Values)
+            {
+                total += sample;
+            }
+
+            return total;
         }
     }
 }

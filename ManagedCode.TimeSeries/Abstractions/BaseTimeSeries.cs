@@ -1,63 +1,105 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Threading;
 using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseTimeSeries<T, TSample, TSelf> : 
+public abstract class BaseTimeSeries<T, TSample, TSelf> :
     ITimeSeries<T, TSelf> where TSelf : BaseTimeSeries<T, TSample, TSelf>
 {
     private const int DefaultSampleCount = 100;
-    private readonly object _sync = new();
+
+    private readonly ConcurrentDictionary<DateTimeOffset, TSample> _samples = new();
+    private DateTimeOffset _start;
+    private DateTimeOffset _end;
+    private DateTimeOffset _lastDate;
+    private long _dataCount;
+    private int _maxSamplesCount;
 
     protected BaseTimeSeries(TimeSpan sampleInterval, int maxSamplesCount)
     {
-        MaxSamplesCount = maxSamplesCount;
         SampleInterval = sampleInterval;
-        Start = DateTimeOffset.UtcNow.Round(SampleInterval);
-        End = Start;
+        MaxSamplesCount = maxSamplesCount;
+
+        var now = DateTimeOffset.UtcNow.Round(SampleInterval);
+        Volatile.Write(ref _start, now);
+        Volatile.Write(ref _end, now);
+        Volatile.Write(ref _lastDate, now);
     }
 
     protected BaseTimeSeries(TimeSpan sampleInterval, int maxSamplesCount, DateTimeOffset start, DateTimeOffset end, DateTimeOffset lastDate)
     {
-        MaxSamplesCount = maxSamplesCount;
         SampleInterval = sampleInterval;
-        Start = start.Round(SampleInterval);
-        End = end.Round(SampleInterval);
-        LastDate = lastDate;
+        MaxSamplesCount = maxSamplesCount;
+
+        Volatile.Write(ref _start, start.Round(SampleInterval));
+        Volatile.Write(ref _end, end.Round(SampleInterval));
+        Volatile.Write(ref _lastDate, lastDate);
+
+        foreach (var key in _samples.Keys)
+        {
+            _samples.TryRemove(key, out _);
+        }
     }
 
-    public Dictionary<DateTimeOffset, TSample> Samples { get; protected set; } = new();
-    public DateTimeOffset Start { get;  internal set; }
-    public DateTimeOffset End { get; protected set; }
+    public ConcurrentDictionary<DateTimeOffset, TSample> Samples => _samples;
+
+    public DateTimeOffset Start
+    {
+        get => Volatile.Read(ref _start);
+        internal set => Volatile.Write(ref _start, value);
+    }
+
+    public DateTimeOffset End
+    {
+        get => Volatile.Read(ref _end);
+        protected set => Volatile.Write(ref _end, value);
+    }
+
+    public DateTimeOffset LastDate
+    {
+        get => Volatile.Read(ref _lastDate);
+        protected set => Volatile.Write(ref _lastDate, value);
+    }
 
     public TimeSpan SampleInterval { get; protected set; }
-    public int MaxSamplesCount { get; protected set; }
 
-    public DateTimeOffset LastDate { get; protected set; }
+    public int MaxSamplesCount
+    {
+        get => Volatile.Read(ref _maxSamplesCount);
+        protected set => Volatile.Write(ref _maxSamplesCount, value);
+    }
 
-    public ulong DataCount { get; protected set; }
+    public ulong DataCount => unchecked((ulong)Volatile.Read(ref _dataCount));
 
-    internal void InitInternal(Dictionary<DateTimeOffset, TSample> samples, 
-        DateTimeOffset start , DateTimeOffset end, 
-        DateTimeOffset lastDate, 
+    internal void InitInternal(Dictionary<DateTimeOffset, TSample> samples,
+        DateTimeOffset start, DateTimeOffset end,
+        DateTimeOffset lastDate,
         ulong dataCount)
     {
-        Samples = samples;
-        Start = start;
-        End = end;
-        LastDate = lastDate;
-        DataCount = dataCount;
+        _samples.Clear();
+        foreach (var kvp in samples)
+        {
+            _samples.TryAdd(kvp.Key, kvp.Value);
+        }
+
+        Volatile.Write(ref _start, start);
+        Volatile.Write(ref _end, end);
+        Volatile.Write(ref _lastDate, lastDate);
+        Volatile.Write(ref _dataCount, unchecked((long)dataCount));
     }
-    
-    public bool IsFull => Samples.Count >= MaxSamplesCount;
-    public bool IsEmpty => Samples.Count == 0;
-    public bool IsOverflow => Samples.Count > MaxSamplesCount;
+
+    public bool IsFull => _samples.Count >= MaxSamplesCount;
+    public bool IsEmpty => _samples.IsEmpty;
+    public bool IsOverflow => MaxSamplesCount > 0 && _samples.Count > MaxSamplesCount;
 
     public abstract void Resample(TimeSpan sampleInterval, int samplesCount);
 
     public static TSelf Empty(TimeSpan? sampleInterval = null, int maxSamplesCount = 0)
     {
-        return (TSelf) Activator.CreateInstance(typeof(TSelf), sampleInterval ?? TimeSpan.Zero, maxSamplesCount)!;
+        return (TSelf)Activator.CreateInstance(typeof(TSelf), sampleInterval ?? TimeSpan.Zero, maxSamplesCount)!;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -65,25 +107,25 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
     public void AddNewData(T data)
     {
-        var rounded = DateTimeOffset.UtcNow.Round(SampleInterval);
-        lock (_sync)
-        {
-            DataCount += 1;
-            AddData(rounded, data);
-            End = rounded;
-            LastDate = DateTimeOffset.UtcNow;
-            CheckSamplesSize();
-        }
+        var now = DateTimeOffset.UtcNow;
+        var rounded = now.Round(SampleInterval);
+
+        Interlocked.Increment(ref _dataCount);
+        AddData(rounded, data);
+
+        UpdateEnd(rounded);
+        Volatile.Write(ref _lastDate, now);
     }
 
     public void AddNewData(DateTimeOffset dateTimeOffset, T data)
     {
-        lock (_sync)
-        {
-            DataCount += 1;
-            AddData(dateTimeOffset.Round(SampleInterval), data);
-            CheckSamplesSize();
-        }
+        var rounded = dateTimeOffset.Round(SampleInterval);
+
+        Interlocked.Increment(ref _dataCount);
+        AddData(rounded, data);
+
+        UpdateEnd(rounded);
+        Volatile.Write(ref _lastDate, rounded);
     }
 
     public void MarkupAllSamples(MarkupDirection direction = MarkupDirection.Past)
@@ -92,67 +134,60 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
         if (direction is MarkupDirection.Past or MarkupDirection.Feature)
         {
-            var now = Start;
+            var cursor = Start;
             for (var i = 0; i < samples; i++)
             {
-                now = now.Round(SampleInterval);
-                if (!Samples.ContainsKey(now))
-                {
-                    Samples.Add(now, Activator.CreateInstance<TSample>());
-                }
-
-                now = direction is MarkupDirection.Feature ? now.Add(SampleInterval) : now.Subtract(SampleInterval);
+                cursor = cursor.Round(SampleInterval);
+                _ = GetOrCreateSample(cursor, static () => Activator.CreateInstance<TSample>()!);
+                cursor = direction is MarkupDirection.Feature ? cursor.Add(SampleInterval) : cursor.Subtract(SampleInterval);
             }
         }
         else
         {
-            var nowForFeature = Start;
-            var nowForPast = Start;
+            var forward = Start;
+            var backward = Start;
 
             for (var i = 0; i < samples / 2 + 1; i++)
             {
-                nowForFeature = nowForFeature.Round(SampleInterval);
-                nowForPast = nowForPast.Round(SampleInterval);
+                forward = forward.Round(SampleInterval);
+                backward = backward.Round(SampleInterval);
 
-                if (!Samples.ContainsKey(nowForFeature))
-                {
-                    Samples.Add(nowForFeature, Activator.CreateInstance<TSample>());
-                }
+                _ = GetOrCreateSample(forward, static () => Activator.CreateInstance<TSample>()!);
+                _ = GetOrCreateSample(backward, static () => Activator.CreateInstance<TSample>()!);
 
-                if (!Samples.ContainsKey(nowForPast))
-                {
-                    Samples.Add(nowForPast, Activator.CreateInstance<TSample>());
-                }
-
-                nowForFeature = nowForFeature.Add(SampleInterval);
-                nowForPast = nowForPast.Subtract(SampleInterval);
+                forward = forward.Add(SampleInterval);
+                backward = backward.Subtract(SampleInterval);
             }
         }
     }
 
     public void DeleteOverdueSamples()
     {
-        var dateTime = DateTimeOffset.UtcNow.Round(SampleInterval);
-        for (int i = 0; i < MaxSamplesCount; i++)
+        if (MaxSamplesCount <= 0 || _samples.IsEmpty)
         {
-            dateTime = dateTime.Subtract(SampleInterval);
+            return;
         }
 
-        lock (_sync)
+        var threshold = DateTimeOffset.UtcNow.Round(SampleInterval);
+        for (var i = 0; i < MaxSamplesCount; i++)
         {
-            foreach (var date in Samples.Keys.ToArray())
+            threshold = threshold.Subtract(SampleInterval);
+        }
+
+        foreach (var key in _samples.Keys)
+        {
+            if (key < threshold)
             {
-                if (date < dateTime)
-                {
-                    Samples.Remove(date);
-                }
+                _samples.TryRemove(key, out _);
             }
         }
+
+        RecalculateRange();
     }
 
     public TSelf Rebase(IEnumerable<TSelf> accumulators)
     {
-        var empty = (TSelf) Activator.CreateInstance(typeof(TSelf), SampleInterval, MaxSamplesCount)!;
+        var empty = (TSelf)Activator.CreateInstance(typeof(TSelf), SampleInterval, MaxSamplesCount)!;
 
         foreach (var accumulator in accumulators)
         {
@@ -172,7 +207,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
     public TSelf Rebase(TSelf accumulator)
     {
-        var empty = (TSelf) Activator.CreateInstance(typeof(TSelf), SampleInterval, MaxSamplesCount)!;
+        var empty = (TSelf)Activator.CreateInstance(typeof(TSelf), SampleInterval, MaxSamplesCount)!;
         empty.Merge(accumulator);
 
         return empty;
@@ -188,23 +223,166 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         return left.Rebase(right);
     }
 
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected abstract void AddData(DateTimeOffset now, T data);
 
-    protected void CheckSamplesSize()
+    protected void AddToDataCount(ulong value)
     {
-        lock (_sync)
+        if (value == 0)
         {
-            if (MaxSamplesCount <= 0)
+            return;
+        }
+
+        Interlocked.Add(ref _dataCount, unchecked((long)value));
+    }
+
+    protected TSample GetOrCreateSample(DateTimeOffset key, Func<TSample> factory)
+    {
+        while (true)
+        {
+            if (_samples.TryGetValue(key, out var existing))
             {
-                return;
+                UpdateRange(key);
+                return existing;
             }
 
-            while (IsOverflow)
+            var created = factory();
+            if (_samples.TryAdd(key, created))
             {
-                Samples.Remove(Samples.Keys.MinBy(o => o)); //check performance here
+                UpdateOnAdd(key);
+                return created;
             }
         }
     }
+
+    protected TSample AddOrUpdateSample(DateTimeOffset key, Func<TSample> addFactory, Func<TSample, TSample> updateFactory)
+    {
+        while (true)
+        {
+            if (_samples.TryGetValue(key, out var existing))
+            {
+                var updated = updateFactory(existing);
+                if (_samples.TryUpdate(key, updated, existing))
+                {
+                    UpdateRange(key);
+                    return updated;
+                }
+
+                continue;
+            }
+
+            var created = addFactory();
+            if (_samples.TryAdd(key, created))
+            {
+                UpdateOnAdd(key);
+                return created;
+            }
+        }
+    }
+
+    protected void ResetSamplesStorage()
+    {
+        _samples.Clear();
+        var now = DateTimeOffset.UtcNow.Round(SampleInterval);
+        Volatile.Write(ref _start, now);
+        Volatile.Write(ref _end, now);
+    }
+
+    private void UpdateOnAdd(DateTimeOffset key)
+    {
+        UpdateRange(key);
+        EnsureCapacity();
+    }
+
+    private void UpdateEnd(DateTimeOffset key)
+    {
+        UpdateRange(key);
+    }
+
+    private void UpdateRange(DateTimeOffset key)
+    {
+        var start = Start;
+        if (start == default || key < start)
+        {
+            Volatile.Write(ref _start, key);
+        }
+
+        var end = End;
+        if (end == default || key > end)
+        {
+            Volatile.Write(ref _end, key);
+        }
+    }
+
+    private void EnsureCapacity()
+    {
+        if (MaxSamplesCount <= 0)
+        {
+            return;
+        }
+
+        while (_samples.Count > MaxSamplesCount)
+        {
+            if (!TryRemoveOldest())
+            {
+                break;
+            }
+        }
+    }
+
+    private bool TryRemoveOldest()
+    {
+        DateTimeOffset oldest = DateTimeOffset.MaxValue;
+        foreach (var key in _samples.Keys)
+        {
+            if (key < oldest)
+            {
+                oldest = key;
+            }
+        }
+
+        if (oldest == DateTimeOffset.MaxValue)
+        {
+            return false;
+        }
+
+        var removed = _samples.TryRemove(oldest, out _);
+        if (removed)
+        {
+            RecalculateRange();
+        }
+
+        return removed;
+    }
+
+    protected void RecalculateRange()
+    {
+        DateTimeOffset min = DateTimeOffset.MaxValue;
+        DateTimeOffset max = DateTimeOffset.MinValue;
+
+        foreach (var key in _samples.Keys)
+        {
+            if (key < min)
+            {
+                min = key;
+            }
+
+            if (key > max)
+            {
+                max = key;
+            }
+        }
+
+        if (min == DateTimeOffset.MaxValue)
+        {
+            var now = DateTimeOffset.UtcNow.Round(SampleInterval);
+            Volatile.Write(ref _start, now);
+            Volatile.Write(ref _end, now);
+            return;
+        }
+
+        Volatile.Write(ref _start, min);
+        Volatile.Write(ref _end, max);
+    }
+
 }

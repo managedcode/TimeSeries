@@ -15,12 +15,9 @@ public abstract class BaseTimeSeriesByValueAccumulator<T, TSelf> : BaseTimeSerie
 
     protected override void AddData(DateTimeOffset date, T data)
     {
-        if (!Samples.ContainsKey(date))
-        {
-            Samples.Add(date, new HashSet<T>());
-        }
-
-        Samples[date].Add(data);
+        ref var set = ref GetOrCreateSample(date, out _);
+        set ??= new HashSet<T>();
+        set.Add(data);
     }
 
     // public BaseTimeSeriesByValueAccumulator<T> Trim()
@@ -62,23 +59,34 @@ public abstract class BaseTimeSeriesByValueAccumulator<T, TSelf> : BaseTimeSerie
 
     public override void Merge(TSelf accumulator)
     {
-        DataCount += accumulator.DataCount;
-        LastDate = accumulator.LastDate > LastDate ? accumulator.LastDate : LastDate;
-        foreach (var sample in accumulator.Samples.ToArray())
+        if (accumulator is null)
         {
-            if (Samples.TryGetValue(sample.Key, out var hashSet))
-            {
-                foreach (var v in sample.Value.ToArray())
-                {
-                    hashSet.Add(v);
-                }
-            }
-            else
-            {
-                Samples.Add(sample.Key, sample.Value);
-            }
+            return;
         }
 
-        CheckSamplesSize();
+        lock (SyncRoot)
+        {
+            DataCount += accumulator.DataCount;
+            if (accumulator.LastDate > LastDate)
+            {
+                LastDate = accumulator.LastDate;
+            }
+
+            foreach (var sample in accumulator.Samples)
+            {
+                ref var set = ref GetOrCreateSample(sample.Key, out var created);
+                if (created)
+                {
+                    set = sample.Value;
+                }
+                else
+                {
+                    set ??= new HashSet<T>();
+                    set.UnionWith(sample.Value);
+                }
+            }
+
+            CheckSamplesSize();
+        }
     }
 }

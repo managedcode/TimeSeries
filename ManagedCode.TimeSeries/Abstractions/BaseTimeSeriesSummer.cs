@@ -14,30 +14,33 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
 
     protected override void AddData(DateTimeOffset date, TSummerItem data)
     {
-        if (!Samples.ContainsKey(date))
-        {
-            Samples.Add(date, TSummerItem.Zero);
-        }
-
-        Samples[date] = Update(Samples[date], data);
+        ref var sample = ref GetOrCreateSample(date, out _);
+        sample = Update(sample, data);
     }
 
     public override void Merge(TSelf accumulator)
     {
-        DataCount += accumulator.DataCount;
-        foreach (var sample in accumulator.Samples.ToArray())
+        if (accumulator is null)
         {
-            if (Samples.ContainsKey(sample.Key))
-            {
-                Samples[sample.Key] = Update(Samples[sample.Key], sample.Value);
-            }
-            else
-            {
-                Samples.Add(sample.Key, sample.Value);
-            }
+            return;
         }
 
-        CheckSamplesSize();
+        lock (SyncRoot)
+        {
+            DataCount += accumulator.DataCount;
+            if (accumulator.LastDate > LastDate)
+            {
+                LastDate = accumulator.LastDate;
+            }
+
+            foreach (var sample in accumulator.Samples)
+            {
+                ref var target = ref GetOrCreateSample(sample.Key, out var created);
+                target = created ? sample.Value : Update(target, sample.Value);
+            }
+
+            CheckSamplesSize();
+        }
     }
 
     public override void Resample(TimeSpan sampleInterval, int samplesCount)
@@ -47,16 +50,18 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
             throw new InvalidOperationException();
         }
 
-        SampleInterval = sampleInterval;
-        MaxSamplesCount = samplesCount;
-
-        var samples = Samples;
-
-        Samples = new Dictionary<DateTimeOffset, TSummerItem>();
-
-        foreach (var (key, value) in samples)
+        lock (SyncRoot)
         {
-            AddNewData(key, value);
+            SampleInterval = sampleInterval;
+            MaxSamplesCount = samplesCount;
+
+            var snapshot = Samples;
+            ResetSamplesStorage();
+
+            foreach (var (key, value) in snapshot)
+            {
+                AddNewData(key, value);
+            }
         }
     }
 
@@ -87,27 +92,61 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TSummerItem? Min()
     {
-        lock (Samples)
+        lock (SyncRoot)
         {
-            return Samples.Values.Min();
+            if (Samples.Count == 0)
+            {
+                return default;
+            }
+
+            var enumerator = Samples.Values.GetEnumerator();
+            enumerator.MoveNext();
+            var min = enumerator.Current;
+
+            while (enumerator.MoveNext())
+            {
+                min = TSummerItem.Min(min, enumerator.Current);
+            }
+
+            return min;
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TSummerItem? Max()
     {
-        lock (Samples)
+        lock (SyncRoot)
         {
-            return Samples.Values.Max();
+            if (Samples.Count == 0)
+            {
+                return default;
+            }
+
+            var enumerator = Samples.Values.GetEnumerator();
+            enumerator.MoveNext();
+            var max = enumerator.Current;
+
+            while (enumerator.MoveNext())
+            {
+                max = TSummerItem.Max(max, enumerator.Current);
+            }
+
+            return max;
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TSummerItem Sum()
     {
-        lock (Samples)
+        lock (SyncRoot)
         {
-            return Samples.Aggregate(TSummerItem.Zero, (current, sample) => current + sample.Value);
+            var total = TSummerItem.Zero;
+            foreach (var value in Samples.Values)
+            {
+                total += value;
+            }
+
+            return total;
         }
     }
 }

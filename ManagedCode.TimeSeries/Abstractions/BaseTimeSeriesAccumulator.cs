@@ -1,8 +1,9 @@
-using ManagedCode.TimeSeries.Extensions;
+using System.Collections.Concurrent;
+using System.Linq;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Queue<T>, TSelf> where TSelf : BaseTimeSeries<T, Queue<T>, TSelf>
+public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, ConcurrentQueue<T>, TSelf> where TSelf : BaseTimeSeries<T, ConcurrentQueue<T>, TSelf>
 {
     protected BaseTimeSeriesAccumulator(TimeSpan sampleInterval, int maxSamplesCount) : base(sampleInterval, maxSamplesCount)
     {
@@ -16,12 +17,8 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Qu
 
     protected override void AddData(DateTimeOffset date, T data)
     {
-        if (!Samples.ContainsKey(date))
-        {
-            Samples.Add(date, new Queue<T>());
-        }
-
-        Samples[date].Enqueue(data);
+        var queue = GetOrCreateSample(date, static () => new ConcurrentQueue<T>());
+        queue.Enqueue(data);
     }
 
     public void Trim()
@@ -32,50 +29,68 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Qu
 
     public void TrimStart()
     {
-        foreach (var item in Samples.ToArray())
+        while (TryGetBoundarySample(static (candidate, current) => candidate < current, out var key, out var queue))
         {
-            if (item.Value.Count > 0)
+            if (!queue.IsEmpty)
             {
-                break;
+                return;
             }
 
-            Samples.Remove(item.Key);
+            if (Samples.TryRemove(key, out _))
+            {
+                RecalculateRange();
+                continue;
+            }
+
+            // Removal failed due to contention, retry.
         }
     }
 
     public void TrimEnd()
     {
-        foreach (var item in Samples.Reverse().ToArray())
+        while (TryGetBoundarySample(static (candidate, current) => candidate > current, out var key, out var queue))
         {
-            if (item.Value.Count > 0)
+            if (!queue.IsEmpty)
             {
-                break;
+                return;
             }
 
-            Samples.Remove(item.Key);
+            if (Samples.TryRemove(key, out _))
+            {
+                RecalculateRange();
+                continue;
+            }
+
+            // Contention, retry.
         }
     }
 
     public override void Merge(TSelf accumulator)
     {
-        DataCount += accumulator.DataCount;
-        LastDate = accumulator.LastDate > LastDate ? accumulator.LastDate : LastDate;
-        foreach (var sample in accumulator.Samples.ToArray())
+        if (accumulator is null)
         {
-            if (Samples.TryGetValue(sample.Key, out var queue))
-            {
-                foreach (var q in sample.Value.ToArray())
-                {
-                    queue.Enqueue(q);
-                }
-            }
-            else
-            {
-                Samples.Add(sample.Key, sample.Value);
-            }
+            return;
         }
 
-        CheckSamplesSize();
+        AddToDataCount(accumulator.DataCount);
+        if (accumulator.LastDate > LastDate)
+        {
+            LastDate = accumulator.LastDate;
+        }
+
+        foreach (var sample in accumulator.Samples)
+        {
+            var queue = GetOrCreateSample(sample.Key, static () => new ConcurrentQueue<T>());
+            if (ReferenceEquals(queue, sample.Value))
+            {
+                continue;
+            }
+
+            foreach (var item in sample.Value)
+            {
+                queue.Enqueue(item);
+            }
+        }
     }
 
     public override void Resample(TimeSpan sampleInterval, int samplesCount)
@@ -88,16 +103,34 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Qu
         SampleInterval = sampleInterval;
         MaxSamplesCount = samplesCount;
 
-        var samples = Samples;
+        var snapshot = Samples.ToArray();
+        ResetSamplesStorage();
 
-        Samples = new Dictionary<DateTimeOffset, Queue<T>>();
-
-        foreach (var (key, value) in samples)
+        foreach (var (key, value) in snapshot)
         {
-            foreach (var v in value)
+            foreach (var item in value)
             {
-                AddNewData(key, v);
+                AddNewData(key, item);
             }
         }
+    }
+
+    private bool TryGetBoundarySample(Func<DateTimeOffset, DateTimeOffset, bool> comparer, out DateTimeOffset key, out ConcurrentQueue<T> queue)
+    {
+        key = default;
+        queue = default!;
+        var found = false;
+
+        foreach (var sample in Samples)
+        {
+            if (!found || comparer(sample.Key, key))
+            {
+                key = sample.Key;
+                queue = sample.Value;
+                found = true;
+            }
+        }
+
+        return found;
     }
 }

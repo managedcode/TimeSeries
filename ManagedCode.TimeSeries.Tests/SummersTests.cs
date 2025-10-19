@@ -1,4 +1,5 @@
 using FluentAssertions;
+using ManagedCode.TimeSeries.Abstractions;
 using ManagedCode.TimeSeries.Accumulators;
 using ManagedCode.TimeSeries.Summers;
 using Xunit;
@@ -179,6 +180,65 @@ public class SummersTests
         }
 
         series.DataCount.Should().Be((ulong) count);
+    }
+
+    [Fact]
+    public void NumberTimeSeriesSummerSupportsLong()
+    {
+        var baseTime = DateTimeOffset.UtcNow;
+        var series = new NumberTimeSeriesSummer<long>(TimeSpan.FromSeconds(1));
+
+        series.AddNewData(baseTime, 10);
+        series.AddNewData(baseTime.AddSeconds(1), 15);
+
+        series.Sum().Should().Be(25);
+        series.Min().Should().Be(10);
+        series.Max().Should().Be(15);
+        series.Average().Should().Be(12);
+    }
+
+    [Fact]
+    public void NumberGroupTimeSeriesSummerAggregatesDecimal()
+    {
+        var group = new NumberGroupTimeSeriesSummer<decimal>(TimeSpan.FromSeconds(1), samplesCount: 32, strategy: Strategy.Sum, deleteOverdueSamples: false);
+
+        group.AddNewData("a", 1.5m);
+        group.AddNewData("a", 2.0m);
+        group.AddNewData("b", 3.0m);
+
+        group.Sum().Should().Be(6.5m);
+        group.Min().Should().Be(3.0m);
+        group.Max().Should().Be(3.5m);
+        group.Average().Should().Be(3.25m);
+    }
+
+    [Fact]
+    public void NumberGroupTimeSeriesSummerHandlesEmptyState()
+    {
+        var group = new NumberGroupTimeSeriesSummer<int>(TimeSpan.FromSeconds(1), deleteOverdueSamples: false);
+
+        group.Sum().Should().Be(0);
+        group.Average().Should().Be(0);
+        group.Min().Should().Be(0);
+        group.Max().Should().Be(0);
+    }
+
+    [Fact]
+    public void NumberTimeSeriesSummerResampleAggregatesBuckets()
+    {
+        var start = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var summer = new NumberTimeSeriesSummer<int>(TimeSpan.FromSeconds(1), maxSamplesCount: 10);
+
+        summer.AddNewData(start, 1);
+        summer.AddNewData(start.AddSeconds(1), 2);
+        summer.AddNewData(start.AddSeconds(2), 3);
+
+        summer.Resample(TimeSpan.FromSeconds(2), 10);
+
+        summer.SampleInterval.Should().Be(TimeSpan.FromSeconds(2));
+        summer.Samples.Should().HaveCount(2);
+        summer.Samples[start].Should().Be(3);
+        summer.Samples[start.AddSeconds(2)].Should().Be(3);
     }
 
     // [Fact]

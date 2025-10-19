@@ -17,21 +17,21 @@ jobs:
     
     steps:
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v5
       - name: Setup .NET
-        uses: actions/setup-dotnet@v1
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 7.0.x
+          dotnet-version: 9.0.x
         
         # run build and test           
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore ManagedCode.TimeSeries.slnx
       - name: Build
-        run: dotnet build --no-restore
-      - name: Test and сollect Code Coverage
-        run: dotnet test -p:CollectCoverage=true -p:CoverletOutputFormat=lcov -p:CoverletOutput=ManagedCode.Communication.Tests/
+        run: dotnet build ManagedCode.TimeSeries.slnx --configuration Release --no-restore
+      - name: Test and collect code coverage
+        run: dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj --configuration Release --no-build -p:CollectCoverage=true -p:CoverletOutputFormat=lcov -p:CoverletOutput=ManagedCode.TimeSeries.Tests/
       - name: coveralls
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{secrets.GITHUB_TOKEN }}
-          path-to-lcov: ManagedCode.TimeSeries.Tests/lcov.info  
+          path-to-lcov: ManagedCode.TimeSeries.Tests/coverage.info  
