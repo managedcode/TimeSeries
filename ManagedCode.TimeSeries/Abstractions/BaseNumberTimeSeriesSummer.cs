@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
@@ -15,8 +16,9 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
 
     protected override void AddData(DateTimeOffset date, TNumber data)
     {
-        ref var sample = ref GetOrCreateSample(date, out _);
-        sample = Update(sample, data);
+        AddOrUpdateSample(date,
+            () => data,
+            current => Update(current, data));
     }
 
     public override void Merge(TSelf accumulator)
@@ -26,21 +28,17 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
             return;
         }
 
-        lock (SyncRoot)
+        AddToDataCount(accumulator.DataCount);
+        if (accumulator.LastDate > LastDate)
         {
-            DataCount += accumulator.DataCount;
-            if (accumulator.LastDate > LastDate)
-            {
-                LastDate = accumulator.LastDate;
-            }
+            LastDate = accumulator.LastDate;
+        }
 
-            foreach (var sample in accumulator.Samples)
-            {
-                ref var target = ref GetOrCreateSample(sample.Key, out var created);
-                target = created ? sample.Value : Update(target, sample.Value);
-            }
-
-            CheckSamplesSize();
+        foreach (var sample in accumulator.Samples)
+        {
+            AddOrUpdateSample(sample.Key,
+                () => sample.Value,
+                current => Update(current, sample.Value));
         }
     }
 
@@ -51,18 +49,15 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
             throw new InvalidOperationException();
         }
 
-        lock (SyncRoot)
+        SampleInterval = sampleInterval;
+        MaxSamplesCount = samplesCount;
+
+        var snapshot = Storage.ToArray();
+        ResetSamplesStorage();
+
+        foreach (var (key, value) in snapshot)
         {
-            SampleInterval = sampleInterval;
-            MaxSamplesCount = samplesCount;
-
-            var snapshot = Samples;
-            ResetSamplesStorage();
-
-            foreach (var (key, value) in snapshot)
-            {
-                AddNewData(key, value);
-            }
+            AddNewData(key, value);
         }
     }
 
@@ -93,81 +88,71 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber Average()
     {
-        lock (SyncRoot)
+        var total = TNumber.Zero;
+        var count = 0;
+
+        foreach (var value in Samples.Values)
         {
-            if (Samples.Count == 0)
-            {
-                return TNumber.Zero;
-            }
-
-            var total = TNumber.Zero;
-            foreach (var value in Samples.Values)
-            {
-                total += value;
-            }
-
-            return total / TNumber.CreateChecked(Samples.Count);
+            total += value;
+            count++;
         }
+
+        return count == 0 ? TNumber.Zero : total / TNumber.CreateChecked(count);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber? Min()
     {
-        lock (SyncRoot)
+        var hasValue = false;
+        var min = TNumber.Zero;
+
+        foreach (var value in Samples.Values)
         {
-            if (Samples.Count == 0)
+            if (!hasValue)
             {
-                return null;
+                min = value;
+                hasValue = true;
             }
-
-            var enumerator = Samples.Values.GetEnumerator();
-            enumerator.MoveNext();
-            var min = enumerator.Current;
-
-            while (enumerator.MoveNext())
+            else
             {
-                min = TNumber.Min(min, enumerator.Current);
+                min = TNumber.Min(min, value);
             }
-
-            return min;
         }
+
+        return hasValue ? min : null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber? Max()
     {
-        lock (SyncRoot)
+        var hasValue = false;
+        var max = TNumber.Zero;
+
+        foreach (var value in Samples.Values)
         {
-            if (Samples.Count == 0)
+            if (!hasValue)
             {
-                return null;
+                max = value;
+                hasValue = true;
             }
-
-            var enumerator = Samples.Values.GetEnumerator();
-            enumerator.MoveNext();
-            var max = enumerator.Current;
-
-            while (enumerator.MoveNext())
+            else
             {
-                max = TNumber.Max(max, enumerator.Current);
+                max = TNumber.Max(max, value);
             }
-
-            return max;
         }
+
+        return hasValue ? max : null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber Sum()
     {
-        lock (SyncRoot)
+        var total = TNumber.Zero;
+        foreach (var sample in Samples.Values)
         {
-            var total = TNumber.Zero;
-            foreach (var sample in Samples.Values)
-            {
-                total += sample;
-            }
-
-            return total;
+            total += sample;
         }
+
+        return total;
     }
 }

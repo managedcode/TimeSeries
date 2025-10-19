@@ -1,7 +1,10 @@
+using System.Collections.Concurrent;
+
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseTimeSeriesByValueAccumulator<T, TSelf> : BaseTimeSeries<T, HashSet<T>, TSelf>
-    where TSelf : BaseTimeSeries<T, HashSet<T>, TSelf>
+public abstract class BaseTimeSeriesByValueAccumulator<T, TSelf> : BaseTimeSeries<T, ConcurrentDictionary<T, byte>, TSelf>
+    where T : notnull
+    where TSelf : BaseTimeSeries<T, ConcurrentDictionary<T, byte>, TSelf>
 {
     protected BaseTimeSeriesByValueAccumulator(TimeSpan sampleInterval, int samplesCount) : base(sampleInterval, samplesCount)
     {
@@ -15,9 +18,8 @@ public abstract class BaseTimeSeriesByValueAccumulator<T, TSelf> : BaseTimeSerie
 
     protected override void AddData(DateTimeOffset date, T data)
     {
-        ref var set = ref GetOrCreateSample(date, out _);
-        set ??= new HashSet<T>();
-        set.Add(data);
+        var set = GetOrCreateSample(date, static () => new ConcurrentDictionary<T, byte>());
+        set.TryAdd(data, 0);
     }
 
     // public BaseTimeSeriesByValueAccumulator<T> Trim()
@@ -64,29 +66,19 @@ public abstract class BaseTimeSeriesByValueAccumulator<T, TSelf> : BaseTimeSerie
             return;
         }
 
-        lock (SyncRoot)
+        AddToDataCount(accumulator.DataCount);
+        if (accumulator.LastDate > LastDate)
         {
-            DataCount += accumulator.DataCount;
-            if (accumulator.LastDate > LastDate)
-            {
-                LastDate = accumulator.LastDate;
-            }
+            LastDate = accumulator.LastDate;
+        }
 
-            foreach (var sample in accumulator.Samples)
+        foreach (var sample in accumulator.Samples)
+        {
+            var set = GetOrCreateSample(sample.Key, static () => new ConcurrentDictionary<T, byte>());
+            foreach (var key in sample.Value.Keys)
             {
-                ref var set = ref GetOrCreateSample(sample.Key, out var created);
-                if (created)
-                {
-                    set = sample.Value;
-                }
-                else
-                {
-                    set ??= new HashSet<T>();
-                    set.UnionWith(sample.Value);
-                }
+                set.TryAdd(key, 0);
             }
-
-            CheckSamplesSize();
         }
     }
 }

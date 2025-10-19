@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using ManagedCode.TimeSeries.Summers;
 using Orleans;
 
@@ -10,13 +14,19 @@ public sealed class IntTimeSeriesSummerConverter<T> : IConverter<IntTimeSeriesSu
     public IntTimeSeriesSummer ConvertFromSurrogate(in TimeSeriesSummerSurrogate<int> surrogate)
     {
         var series = new IntTimeSeriesSummer(surrogate.SampleInterval, surrogate.MaxSamplesCount, surrogate.Strategy);
-        series.InitInternal(surrogate.Samples, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
+        var converted = surrogate.Samples.ToDictionary(
+            static kvp => kvp.Key,
+            static kvp => kvp.Value);
+        series.InitInternal(converted, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
         return series;
     }
 
     public TimeSeriesSummerSurrogate<int> ConvertToSurrogate(in IntTimeSeriesSummer value)
     {
-        return new TimeSeriesSummerSurrogate<int>(value.Samples, value.Start, value.End, 
+        var converted = value.Samples.ToDictionary(
+            static kvp => kvp.Key,
+            static kvp => kvp.Value);
+        return new TimeSeriesSummerSurrogate<int>(converted, value.Start, value.End,
             value.SampleInterval, value.MaxSamplesCount, value.LastDate, value.DataCount, value.Strategy);
     }
 }

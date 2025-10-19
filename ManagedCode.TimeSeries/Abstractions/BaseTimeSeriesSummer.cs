@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace ManagedCode.TimeSeries.Abstractions;
@@ -14,8 +15,9 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
 
     protected override void AddData(DateTimeOffset date, TSummerItem data)
     {
-        ref var sample = ref GetOrCreateSample(date, out _);
-        sample = Update(sample, data);
+        AddOrUpdateSample(date,
+            () => data,
+            current => Update(current, data));
     }
 
     public override void Merge(TSelf accumulator)
@@ -25,21 +27,17 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
             return;
         }
 
-        lock (SyncRoot)
+        AddToDataCount(accumulator.DataCount);
+        if (accumulator.LastDate > LastDate)
         {
-            DataCount += accumulator.DataCount;
-            if (accumulator.LastDate > LastDate)
-            {
-                LastDate = accumulator.LastDate;
-            }
+            LastDate = accumulator.LastDate;
+        }
 
-            foreach (var sample in accumulator.Samples)
-            {
-                ref var target = ref GetOrCreateSample(sample.Key, out var created);
-                target = created ? sample.Value : Update(target, sample.Value);
-            }
-
-            CheckSamplesSize();
+        foreach (var sample in accumulator.Samples)
+        {
+            AddOrUpdateSample(sample.Key,
+                () => sample.Value,
+                current => Update(current, sample.Value));
         }
     }
 
@@ -50,18 +48,15 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
             throw new InvalidOperationException();
         }
 
-        lock (SyncRoot)
+        SampleInterval = sampleInterval;
+        MaxSamplesCount = samplesCount;
+
+        var snapshot = Storage.ToArray();
+        ResetSamplesStorage();
+
+        foreach (var (key, value) in snapshot)
         {
-            SampleInterval = sampleInterval;
-            MaxSamplesCount = samplesCount;
-
-            var snapshot = Samples;
-            ResetSamplesStorage();
-
-            foreach (var (key, value) in snapshot)
-            {
-                AddNewData(key, value);
-            }
+            AddNewData(key, value);
         }
     }
 
@@ -92,61 +87,56 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TSummerItem? Min()
     {
-        lock (SyncRoot)
+        var hasValue = false;
+        var min = TSummerItem.Zero;
+
+        foreach (var value in Samples.Values)
         {
-            if (Samples.Count == 0)
+            if (!hasValue)
             {
-                return default;
+                min = value;
+                hasValue = true;
             }
-
-            var enumerator = Samples.Values.GetEnumerator();
-            enumerator.MoveNext();
-            var min = enumerator.Current;
-
-            while (enumerator.MoveNext())
+            else
             {
-                min = TSummerItem.Min(min, enumerator.Current);
+                min = TSummerItem.Min(min, value);
             }
-
-            return min;
         }
+
+        return hasValue ? min : default;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TSummerItem? Max()
     {
-        lock (SyncRoot)
+        var hasValue = false;
+        var max = TSummerItem.Zero;
+
+        foreach (var value in Samples.Values)
         {
-            if (Samples.Count == 0)
+            if (!hasValue)
             {
-                return default;
+                max = value;
+                hasValue = true;
             }
-
-            var enumerator = Samples.Values.GetEnumerator();
-            enumerator.MoveNext();
-            var max = enumerator.Current;
-
-            while (enumerator.MoveNext())
+            else
             {
-                max = TSummerItem.Max(max, enumerator.Current);
+                max = TSummerItem.Max(max, value);
             }
-
-            return max;
         }
+
+        return hasValue ? max : default;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TSummerItem Sum()
     {
-        lock (SyncRoot)
+        var total = TSummerItem.Zero;
+        foreach (var value in Samples.Values)
         {
-            var total = TSummerItem.Zero;
-            foreach (var value in Samples.Values)
-            {
-                total += value;
-            }
-
-            return total;
+            total += value;
         }
+
+        return total;
     }
 }

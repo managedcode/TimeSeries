@@ -1,4 +1,7 @@
+using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -12,9 +15,9 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
     private const int DefaultSampleCount = 100;
 
     private readonly ConcurrentDictionary<DateTimeOffset, TSample> _samples = new();
-    private DateTimeOffset _start;
-    private DateTimeOffset _end;
-    private DateTimeOffset _lastDate;
+    private AtomicDateTimeOffset _start;
+    private AtomicDateTimeOffset _end;
+    private AtomicDateTimeOffset _lastDate;
     private long _dataCount;
     private int _maxSamplesCount;
 
@@ -24,9 +27,9 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         MaxSamplesCount = maxSamplesCount;
 
         var now = DateTimeOffset.UtcNow.Round(SampleInterval);
-        Volatile.Write(ref _start, now);
-        Volatile.Write(ref _end, now);
-        Volatile.Write(ref _lastDate, now);
+        _start.Write(now);
+        _end.Write(now);
+        _lastDate.Write(now);
     }
 
     protected BaseTimeSeries(TimeSpan sampleInterval, int maxSamplesCount, DateTimeOffset start, DateTimeOffset end, DateTimeOffset lastDate)
@@ -34,9 +37,9 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         SampleInterval = sampleInterval;
         MaxSamplesCount = maxSamplesCount;
 
-        Volatile.Write(ref _start, start.Round(SampleInterval));
-        Volatile.Write(ref _end, end.Round(SampleInterval));
-        Volatile.Write(ref _lastDate, lastDate);
+        _start.Write(start.Round(SampleInterval));
+        _end.Write(end.Round(SampleInterval));
+        _lastDate.Write(lastDate);
 
         foreach (var key in _samples.Keys)
         {
@@ -44,24 +47,26 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         }
     }
 
-    public ConcurrentDictionary<DateTimeOffset, TSample> Samples => _samples;
+    protected ConcurrentDictionary<DateTimeOffset, TSample> Storage => _samples;
+
+    public IReadOnlyDictionary<DateTimeOffset, TSample> Samples => new OrderedSampleView(_samples);
 
     public DateTimeOffset Start
     {
-        get => Volatile.Read(ref _start);
-        internal set => Volatile.Write(ref _start, value);
+        get => _start.Read();
+        internal set => _start.Write(value);
     }
 
     public DateTimeOffset End
     {
-        get => Volatile.Read(ref _end);
-        protected set => Volatile.Write(ref _end, value);
+        get => _end.Read();
+        protected set => _end.Write(value);
     }
 
     public DateTimeOffset LastDate
     {
-        get => Volatile.Read(ref _lastDate);
-        protected set => Volatile.Write(ref _lastDate, value);
+        get => _lastDate.Read();
+        protected set => _lastDate.Write(value);
     }
 
     public TimeSpan SampleInterval { get; protected set; }
@@ -85,9 +90,9 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
             _samples.TryAdd(kvp.Key, kvp.Value);
         }
 
-        Volatile.Write(ref _start, start);
-        Volatile.Write(ref _end, end);
-        Volatile.Write(ref _lastDate, lastDate);
+        _start.Write(start);
+        _end.Write(end);
+        _lastDate.Write(lastDate);
         Volatile.Write(ref _dataCount, unchecked((long)dataCount));
     }
 
@@ -114,7 +119,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         AddData(rounded, data);
 
         UpdateEnd(rounded);
-        Volatile.Write(ref _lastDate, now);
+        _lastDate.Write(now);
     }
 
     public void AddNewData(DateTimeOffset dateTimeOffset, T data)
@@ -125,7 +130,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         AddData(rounded, data);
 
         UpdateEnd(rounded);
-        Volatile.Write(ref _lastDate, rounded);
+        _lastDate.Write(rounded);
     }
 
     public void MarkupAllSamples(MarkupDirection direction = MarkupDirection.Past)
@@ -191,7 +196,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
         foreach (var accumulator in accumulators)
         {
-            Merge(accumulator);
+            empty.Merge(accumulator);
         }
 
         return empty;
@@ -284,8 +289,8 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
     {
         _samples.Clear();
         var now = DateTimeOffset.UtcNow.Round(SampleInterval);
-        Volatile.Write(ref _start, now);
-        Volatile.Write(ref _end, now);
+        _start.Write(now);
+        _end.Write(now);
     }
 
     private void UpdateOnAdd(DateTimeOffset key)
@@ -296,22 +301,14 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
     private void UpdateEnd(DateTimeOffset key)
     {
-        UpdateRange(key);
+        _end.TrySetLater(key);
+        _start.TrySetEarlier(key);
     }
 
     private void UpdateRange(DateTimeOffset key)
     {
-        var start = Start;
-        if (start == default || key < start)
-        {
-            Volatile.Write(ref _start, key);
-        }
-
-        var end = End;
-        if (end == default || key > end)
-        {
-            Volatile.Write(ref _end, key);
-        }
+        _start.TrySetEarlier(key);
+        _end.TrySetLater(key);
     }
 
     private void EnsureCapacity()
@@ -376,13 +373,101 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         if (min == DateTimeOffset.MaxValue)
         {
             var now = DateTimeOffset.UtcNow.Round(SampleInterval);
-            Volatile.Write(ref _start, now);
-            Volatile.Write(ref _end, now);
+            _start.Write(now);
+            _end.Write(now);
             return;
         }
 
-        Volatile.Write(ref _start, min);
-        Volatile.Write(ref _end, max);
+        _start.Write(min);
+        _end.Write(max);
     }
 
+    private sealed class OrderedSampleView : IReadOnlyDictionary<DateTimeOffset, TSample>
+    {
+        private readonly ConcurrentDictionary<DateTimeOffset, TSample> _source;
+
+        public OrderedSampleView(ConcurrentDictionary<DateTimeOffset, TSample> source)
+        {
+            _source = source;
+        }
+
+        public IEnumerable<DateTimeOffset> Keys => _source.Keys.OrderBy(static key => key);
+
+        public IEnumerable<TSample> Values => _source.OrderBy(static pair => pair.Key).Select(static pair => pair.Value);
+
+        public int Count => _source.Count;
+
+        public TSample this[DateTimeOffset key] => _source[key];
+
+        public bool ContainsKey(DateTimeOffset key) => _source.ContainsKey(key);
+
+        public bool TryGetValue(DateTimeOffset key, out TSample value) => _source.TryGetValue(key, out value);
+
+        public IEnumerator<KeyValuePair<DateTimeOffset, TSample>> GetEnumerator() => _source.OrderBy(static pair => pair.Key).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+}
+
+internal struct AtomicDateTimeOffset
+{
+    private long _utcTicks;
+    private int _offsetMinutes;
+
+    public DateTimeOffset Read()
+    {
+        var ticks = Volatile.Read(ref _utcTicks);
+        var offsetMinutes = Volatile.Read(ref _offsetMinutes);
+
+        if (ticks == 0 && offsetMinutes == 0)
+        {
+            return default;
+        }
+
+        var utc = new DateTime(ticks == 0 ? 0 : ticks, DateTimeKind.Utc);
+        var offset = TimeSpan.FromMinutes(offsetMinutes);
+        return new DateTimeOffset(utc, TimeSpan.Zero).ToOffset(offset);
+    }
+
+    public void Write(DateTimeOffset value)
+    {
+        Volatile.Write(ref _utcTicks, value.UtcTicks);
+        Volatile.Write(ref _offsetMinutes, (int)value.Offset.TotalMinutes);
+    }
+
+    public void TrySetEarlier(DateTimeOffset candidate)
+    {
+        while (true)
+        {
+            var currentTicks = Volatile.Read(ref _utcTicks);
+            if (currentTicks != 0 && candidate.UtcTicks >= currentTicks)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _utcTicks, candidate.UtcTicks, currentTicks) == currentTicks)
+            {
+                Volatile.Write(ref _offsetMinutes, (int)candidate.Offset.TotalMinutes);
+                return;
+            }
+        }
+    }
+
+    public void TrySetLater(DateTimeOffset candidate)
+    {
+        while (true)
+        {
+            var currentTicks = Volatile.Read(ref _utcTicks);
+            if (currentTicks != 0 && candidate.UtcTicks <= currentTicks)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _utcTicks, candidate.UtcTicks, currentTicks) == currentTicks)
+            {
+                Volatile.Write(ref _offsetMinutes, (int)candidate.Offset.TotalMinutes);
+                return;
+            }
+        }
+    }
 }

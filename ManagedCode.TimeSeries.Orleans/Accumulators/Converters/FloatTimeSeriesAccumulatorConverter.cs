@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using ManagedCode.TimeSeries.Accumulators;
 using Orleans;
 
@@ -9,13 +12,19 @@ public sealed class FloatTimeSeriesAccumulatorConverter<T> : IConverter<FloatTim
     public FloatTimeSeriesAccumulator ConvertFromSurrogate(in TimeSeriesAccumulatorsSurrogate<float> surrogate)
     {
         var series = new FloatTimeSeriesAccumulator(surrogate.SampleInterval, surrogate.MaxSamplesCount);
-        series.InitInternal(surrogate.Samples, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
+        var converted = surrogate.Samples.ToDictionary(
+            static kvp => kvp.Key,
+            static kvp => new ConcurrentQueue<float>(kvp.Value));
+        series.InitInternal(converted, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
         return series;
     }
 
     public TimeSeriesAccumulatorsSurrogate<float> ConvertToSurrogate(in FloatTimeSeriesAccumulator value)
     {
-        return new TimeSeriesAccumulatorsSurrogate<float>(value.Samples, value.Start, value.End, 
+        var converted = value.Samples.ToDictionary(
+            static kvp => kvp.Key,
+            static kvp => new Queue<float>(kvp.Value));
+        return new TimeSeriesAccumulatorsSurrogate<float>(converted, value.Start, value.End,
             value.SampleInterval, value.MaxSamplesCount, value.LastDate, value.DataCount);
     }
 }

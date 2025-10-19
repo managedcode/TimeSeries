@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -9,8 +10,7 @@ public abstract class BaseGroupTimeSeriesAccumulator<T, TAccumulator> : IDisposa
 {
     private readonly Func<TAccumulator> _factory;
     private readonly Timer? _timer;
-    protected Lock SyncRoot = new();
-    protected readonly Dictionary<string, TAccumulator> Accumulators = new();
+    protected readonly ConcurrentDictionary<string, TAccumulator> Accumulators = new();
 
     protected BaseGroupTimeSeriesAccumulator(TimeSpan sampleInterval, bool deleteOverdueSamples, Func<TAccumulator> factory)
     {
@@ -23,31 +23,12 @@ public abstract class BaseGroupTimeSeriesAccumulator<T, TAccumulator> : IDisposa
 
     private void Callback(object? state)
     {
-        lock (SyncRoot)
+        foreach (var (key, accumulator) in Accumulators.ToArray())
         {
-            if (Accumulators.Count == 0)
+            accumulator.DeleteOverdueSamples();
+            if (accumulator.IsEmpty)
             {
-                return;
-            }
-
-            var keys = new List<string>(Accumulators.Count);
-            foreach (var pair in Accumulators)
-            {
-                keys.Add(pair.Key);
-            }
-
-            foreach (var key in keys)
-            {
-                if (!Accumulators.TryGetValue(key, out var accumulator))
-                {
-                    continue;
-                }
-
-                accumulator.DeleteOverdueSamples();
-                if (accumulator.IsEmpty)
-                {
-                    Accumulators.Remove(key);
-                }
+                Accumulators.TryRemove(key, out _);
             }
         }
     }
@@ -59,16 +40,7 @@ public abstract class BaseGroupTimeSeriesAccumulator<T, TAccumulator> : IDisposa
 
     public TAccumulator GetOrAdd(string key)
     {
-        lock (SyncRoot)
-        {
-            if (!Accumulators.TryGetValue(key, out var accumulator))
-            {
-                accumulator = CreateAccumulator();
-                Accumulators[key] = accumulator;
-            }
-
-            return accumulator;
-        }
+        return Accumulators.GetOrAdd(key, _ => CreateAccumulator());
     }
 
     public void AddNewData(string key, T data)
@@ -83,37 +55,28 @@ public abstract class BaseGroupTimeSeriesAccumulator<T, TAccumulator> : IDisposa
 
     public bool TryGet(string key, out TAccumulator accumulator)
     {
-        lock (SyncRoot)
-        {
-            return Accumulators.TryGetValue(key, out accumulator!);
-        }
+        return Accumulators.TryGetValue(key, out accumulator!);
     }
 
     public bool Remove(string key)
     {
-        lock (SyncRoot)
-        {
-            return Accumulators.Remove(key);
-        }
+        return Accumulators.TryRemove(key, out _);
     }
 
     public IReadOnlyList<KeyValuePair<string, TAccumulator>> Snapshot()
     {
-        lock (SyncRoot)
+        if (Accumulators.IsEmpty)
         {
-            if (Accumulators.Count == 0)
-            {
-                return Array.Empty<KeyValuePair<string, TAccumulator>>();
-            }
-
-            var copy = new List<KeyValuePair<string, TAccumulator>>(Accumulators.Count);
-            foreach (var pair in Accumulators)
-            {
-                copy.Add(new KeyValuePair<string, TAccumulator>(pair.Key, pair.Value));
-            }
-
-            return copy;
+            return Array.Empty<KeyValuePair<string, TAccumulator>>();
         }
+
+        var copy = new List<KeyValuePair<string, TAccumulator>>(Accumulators.Count);
+        foreach (var pair in Accumulators)
+        {
+            copy.Add(new KeyValuePair<string, TAccumulator>(pair.Key, pair.Value));
+        }
+
+        return copy;
     }
 
     public void Dispose()

@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using ManagedCode.TimeSeries.Abstractions;
 using ManagedCode.TimeSeries.Accumulators;
 using ManagedCode.TimeSeries.Summers;
@@ -12,13 +15,19 @@ public sealed class IntTimeSeriesAccumulatorConverter<T> : IConverter<IntTimeSer
     public IntTimeSeriesAccumulator ConvertFromSurrogate(in TimeSeriesAccumulatorsSurrogate<int> surrogate)
     {
         var series = new IntTimeSeriesAccumulator(surrogate.SampleInterval, surrogate.MaxSamplesCount);
-        series.InitInternal(surrogate.Samples, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
+        var converted = surrogate.Samples.ToDictionary(
+            static kvp => kvp.Key,
+            static kvp => new ConcurrentQueue<int>(kvp.Value));
+        series.InitInternal(converted, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
         return series;
     }
 
     public TimeSeriesAccumulatorsSurrogate<int> ConvertToSurrogate(in IntTimeSeriesAccumulator value)
     {
-        return new TimeSeriesAccumulatorsSurrogate<int>(value.Samples, value.Start, value.End, 
+        var converted = value.Samples.ToDictionary(
+            static kvp => kvp.Key,
+            static kvp => new Queue<int>(kvp.Value));
+        return new TimeSeriesAccumulatorsSurrogate<int>(converted, value.Start, value.End,
             value.SampleInterval, value.MaxSamplesCount, value.LastDate, value.DataCount);
     }
 }

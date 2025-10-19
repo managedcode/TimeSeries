@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using ManagedCode.TimeSeries.Accumulators;
 using Orleans;
 
@@ -9,13 +12,19 @@ public sealed class DoubleTimeSeriesAccumulatorConverter<T> : IConverter<DoubleT
     public DoubleTimeSeriesAccumulator ConvertFromSurrogate(in TimeSeriesAccumulatorsSurrogate<double> surrogate)
     {
         var series = new DoubleTimeSeriesAccumulator(surrogate.SampleInterval, surrogate.MaxSamplesCount);
-        series.InitInternal(surrogate.Samples, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
+        var converted = surrogate.Samples.ToDictionary(
+            static kvp => kvp.Key,
+            static kvp => new ConcurrentQueue<double>(kvp.Value));
+        series.InitInternal(converted, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
         return series;
     }
 
     public TimeSeriesAccumulatorsSurrogate<double> ConvertToSurrogate(in DoubleTimeSeriesAccumulator value)
     {
-        return new TimeSeriesAccumulatorsSurrogate<double>(value.Samples, value.Start, value.End, 
+        var converted = value.Samples.ToDictionary(
+            static kvp => kvp.Key,
+            static kvp => new Queue<double>(kvp.Value));
+        return new TimeSeriesAccumulatorsSurrogate<double>(converted, value.Start, value.End,
             value.SampleInterval, value.MaxSamplesCount, value.LastDate, value.DataCount);
     }
 }

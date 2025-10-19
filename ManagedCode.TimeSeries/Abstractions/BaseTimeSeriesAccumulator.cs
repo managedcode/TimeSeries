@@ -36,7 +36,7 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Co
                 return;
             }
 
-            if (Samples.TryRemove(key, out _))
+            if (Storage.TryRemove(key, out _))
             {
                 RecalculateRange();
                 continue;
@@ -55,7 +55,7 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Co
                 return;
             }
 
-            if (Samples.TryRemove(key, out _))
+            if (Storage.TryRemove(key, out _))
             {
                 RecalculateRange();
                 continue;
@@ -103,7 +103,7 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Co
         SampleInterval = sampleInterval;
         MaxSamplesCount = samplesCount;
 
-        var snapshot = Samples.ToArray();
+        var snapshot = Storage.ToArray();
         ResetSamplesStorage();
 
         foreach (var (key, value) in snapshot)

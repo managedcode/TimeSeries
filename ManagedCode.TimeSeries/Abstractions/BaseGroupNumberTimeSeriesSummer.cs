@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
@@ -10,8 +11,7 @@ public abstract class BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf> :
     where TSelf : BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf>
 {
     internal readonly Timer? _timer;
-    protected Lock SyncRoot = new();
-    public readonly Dictionary<string, TSummer> TimeSeries = new();
+    public readonly ConcurrentDictionary<string, TSummer> TimeSeries = new();
 
     protected BaseGroupNumberTimeSeriesSummer(TimeSpan sampleInterval, bool deleteOverdueSamples)
     {
@@ -20,84 +20,32 @@ public abstract class BaseGroupNumberTimeSeriesSummer<TNumber, TSummer, TSelf> :
 
     private void Callback(object? state)
     {
-        lock (SyncRoot)
+        foreach (var (key, summer) in TimeSeries.ToArray())
         {
-            if (TimeSeries.Count == 0)
+            summer.DeleteOverdueSamples();
+            if (summer.IsEmpty)
             {
-                return;
-            }
-
-            var keys = new List<string>(TimeSeries.Count);
-            foreach (var pair in TimeSeries)
-            {
-                keys.Add(pair.Key);
-            }
-
-            foreach (var key in keys)
-            {
-                if (!TimeSeries.TryGetValue(key, out var summer))
-                {
-                    continue;
-                }
-
-                summer.DeleteOverdueSamples();
-                if (summer.IsEmpty)
-                {
-                    TimeSeries.Remove(key);
-                }
+                TimeSeries.TryRemove(key, out _);
             }
         }
     }
 
     public virtual void AddNewData(string key, TNumber value)
     {
-        lock (SyncRoot)
-        {
-            if (TimeSeries.TryGetValue(key, out var summer))
-            {
-                summer.AddNewData(value);
-            }
-            else
-            {
-                var newSummer = CreateSummer();
-                newSummer.AddNewData(value);
-                TimeSeries[key] = newSummer;
-            }
-        }
+        var summer = TimeSeries.GetOrAdd(key, _ => CreateSummer());
+        summer.AddNewData(value);
     }
 
     public virtual void Increment(string key)
     {
-        lock (SyncRoot)
-        {
-            if (TimeSeries.TryGetValue(key, out var summer))
-            {
-                summer.Increment();
-            }
-            else
-            {
-                var newSummer = CreateSummer();
-                newSummer.Increment();
-                TimeSeries[key] = newSummer;
-            }
-        }
+        var summer = TimeSeries.GetOrAdd(key, _ => CreateSummer());
+        summer.Increment();
     }
 
     public virtual void Decrement(string key)
     {
-        lock (SyncRoot)
-        {
-            if (TimeSeries.TryGetValue(key, out var summer))
-            {
-                summer.Decrement();
-            }
-            else
-            {
-                var newSummer = CreateSummer();
-                newSummer.Decrement();
-                TimeSeries[key] = newSummer;
-            }
-        }
+        var summer = TimeSeries.GetOrAdd(key, _ => CreateSummer());
+        summer.Decrement();
     }
 
     public abstract TNumber Average();

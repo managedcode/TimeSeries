@@ -29,6 +29,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\ManagedCode.TimeSeries\ManagedCode.TimeSeries.csproj" />
+        <ProjectReference Include="..\ManagedCode.TimeSeries.Orleans\ManagedCode.TimeSeries.Orleans.csproj" />
     </ItemGroup>
 
 </Project>

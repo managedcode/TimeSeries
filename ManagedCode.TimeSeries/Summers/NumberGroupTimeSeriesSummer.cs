@@ -30,96 +30,84 @@ public class NumberGroupTimeSeriesSummer<TNumber> : BaseGroupNumberTimeSeriesSum
 
     public override TNumber Average()
     {
-        lock (SyncRoot)
+        if (TimeSeries.IsEmpty)
         {
-            if (TimeSeries.Count == 0)
-            {
-                return TNumber.Zero;
-            }
-
-            var total = TNumber.Zero;
-            var sampleCount = 0;
-
-            foreach (var summer in TimeSeries.Values)
-            {
-                total += summer.Sum();
-                sampleCount += summer.Samples.Count;
-            }
-
-            return sampleCount == 0 ? TNumber.Zero : total / TNumber.CreateChecked(sampleCount);
+            return TNumber.Zero;
         }
+
+        var total = TNumber.Zero;
+        var sampleCount = 0;
+
+        foreach (var summer in TimeSeries.Values)
+        {
+            total += summer.Sum();
+            sampleCount += summer.Samples.Count;
+        }
+
+        return sampleCount == 0 ? TNumber.Zero : total / TNumber.CreateChecked(sampleCount);
     }
 
     public override TNumber Min()
     {
-        lock (SyncRoot)
+        var hasValue = false;
+        var min = TNumber.Zero;
+
+        foreach (var summer in TimeSeries.Values)
         {
-            var hasValue = false;
-            var min = TNumber.Zero;
-
-            foreach (var summer in TimeSeries.Values)
+            if (summer.Min() is not TNumber minValue)
             {
-                if (summer.Min() is not TNumber minValue)
-                {
-                    continue;
-                }
-
-                if (!hasValue)
-                {
-                    min = minValue;
-                    hasValue = true;
-                }
-                else
-                {
-                    min = TNumber.Min(min, minValue);
-                }
+                continue;
             }
 
-            return hasValue ? min : TNumber.Zero;
+            if (!hasValue)
+            {
+                min = minValue;
+                hasValue = true;
+            }
+            else
+            {
+                min = TNumber.Min(min, minValue);
+            }
         }
+
+        return hasValue ? min : TNumber.Zero;
     }
 
     public override TNumber Max()
     {
-        lock (SyncRoot)
+        var hasValue = false;
+        var max = TNumber.Zero;
+
+        foreach (var summer in TimeSeries.Values)
         {
-            var hasValue = false;
-            var max = TNumber.Zero;
-
-            foreach (var summer in TimeSeries.Values)
+            if (summer.Max() is not TNumber maxValue)
             {
-                if (summer.Max() is not TNumber maxValue)
-                {
-                    continue;
-                }
-
-                if (!hasValue)
-                {
-                    max = maxValue;
-                    hasValue = true;
-                }
-                else
-                {
-                    max = TNumber.Max(max, maxValue);
-                }
+                continue;
             }
 
-            return hasValue ? max : TNumber.Zero;
+            if (!hasValue)
+            {
+                max = maxValue;
+                hasValue = true;
+            }
+            else
+            {
+                max = TNumber.Max(max, maxValue);
+            }
         }
+
+        return hasValue ? max : TNumber.Zero;
     }
 
     public override TNumber Sum()
     {
-        lock (SyncRoot)
+        var total = TNumber.Zero;
+        foreach (var summer in TimeSeries.Values)
         {
-            var total = TNumber.Zero;
-            foreach (var summer in TimeSeries.Values)
-            {
-                total += summer.Sum();
-            }
-
-            return total;
+            total += summer.Sum();
         }
+
+        return total;
     }
 
     protected override NumberTimeSeriesSummer<TNumber> CreateSummer()
