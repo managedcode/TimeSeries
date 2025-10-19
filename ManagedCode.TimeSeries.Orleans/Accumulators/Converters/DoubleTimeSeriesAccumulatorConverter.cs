@@ -1,6 +1,6 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using ManagedCode.TimeSeries.Accumulators;
 using Orleans;
 
@@ -12,18 +12,27 @@ public sealed class DoubleTimeSeriesAccumulatorConverter<T> : IConverter<DoubleT
     public DoubleTimeSeriesAccumulator ConvertFromSurrogate(in TimeSeriesAccumulatorsSurrogate<double> surrogate)
     {
         var series = new DoubleTimeSeriesAccumulator(surrogate.SampleInterval, surrogate.MaxSamplesCount);
-        var converted = surrogate.Samples.ToDictionary(
-            static kvp => kvp.Key,
-            static kvp => new ConcurrentQueue<double>(kvp.Value));
+        var converted = new Dictionary<DateTimeOffset, ConcurrentQueue<double>>(surrogate.Samples.Count);
+
+        foreach (var pair in surrogate.Samples)
+        {
+            converted[pair.Key] = new ConcurrentQueue<double>(pair.Value);
+        }
+
         series.InitInternal(converted, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
         return series;
     }
 
     public TimeSeriesAccumulatorsSurrogate<double> ConvertToSurrogate(in DoubleTimeSeriesAccumulator value)
     {
-        var converted = value.Samples.ToDictionary(
-            static kvp => kvp.Key,
-            static kvp => new Queue<double>(kvp.Value));
+        var samples = value.Samples;
+        var converted = new Dictionary<DateTimeOffset, Queue<double>>(samples.Count);
+
+        foreach (var pair in samples)
+        {
+            converted[pair.Key] = new Queue<double>(pair.Value);
+        }
+
         return new TimeSeriesAccumulatorsSurrogate<double>(converted, value.Start, value.End,
             value.SampleInterval, value.MaxSamplesCount, value.LastDate, value.DataCount);
     }

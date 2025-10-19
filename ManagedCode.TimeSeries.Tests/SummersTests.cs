@@ -1,7 +1,9 @@
-using FluentAssertions;
+using Shouldly;
 using ManagedCode.TimeSeries.Abstractions;
 using ManagedCode.TimeSeries.Accumulators;
+using ManagedCode.TimeSeries.Extensions;
 using ManagedCode.TimeSeries.Summers;
+using ManagedCode.TimeSeries.Tests.Assertions;
 using Xunit;
 
 namespace ManagedCode.TimeSeries.Tests;
@@ -18,14 +20,14 @@ public class SummersTests
             series.AddNewData(i);
         }
 
-        series.DataCount.Should().Be(1000);
+        series.DataCount.ShouldBe(1000ul);
 
         var step = 0;
         foreach (var queue in series.Samples)
         {
             foreach (var item in queue.Value)
             {
-                item.Should().Be(step);
+                item.ShouldBe(step);
                 step++;
             }
         }
@@ -54,9 +56,9 @@ public class SummersTests
     //     series.AddNewData(dt, "3");
     //     series.AddNewData(dt, "2");
     //
-    //     series.DataCount.Should().Be(12);
-    //     series.Samples.First().Value.Count.Should().Be(3);
-    //     series.Samples.Last().Value.Count.Should().Be(3);
+    //     series.DataCount.ShouldBe(12);
+    //     series.Samples.First().Value.Count.ShouldBe(3);
+    //     series.Samples.Last().Value.Count.ShouldBe(3);
     // }
 
     [Fact]
@@ -70,7 +72,7 @@ public class SummersTests
             series.AddNewData(i);
         }
 
-        series.Samples.Count.Should().Be(10);
+        series.Samples.Count.ShouldBe(10);
     }
 
     [Fact]
@@ -90,14 +92,14 @@ public class SummersTests
             series.AddNewData(i);
         }
 
-        series.IsFull.Should().BeTrue();
+        series.IsFull.ShouldBeTrue();
     }
 
     [Fact]
     public void IsEmpty()
     {
         var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10);
-        series.IsEmpty.Should().BeTrue();
+        series.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -120,12 +122,12 @@ public class SummersTests
 
         await Task.WhenAll(seriesA, seriesB);
 
-        seriesA.Result.Samples.Count.Should().Be(10);
-        seriesB.Result.Samples.Count.Should().Be(10);
+        seriesA.Result.Samples.Count.ShouldBe(10);
+        seriesB.Result.Samples.Count.ShouldBe(10);
 
         seriesA.Result.Merge(seriesB.Result);
 
-        seriesA.Result.Samples.Count.Should().Be(10);
+        seriesA.Result.Samples.Count.ShouldBe(10);
 
         var seriesList = new List<IntTimeSeriesAccumulator>();
         seriesList.Add(await FillFunc());
@@ -146,7 +148,7 @@ public class SummersTests
             }
         }
 
-        onlineExpertsPerHourTimeSeries.Samples.Count.Should().Be(10);
+        onlineExpertsPerHourTimeSeries.Samples.Count.ShouldBe(10);
     }
 
     [Fact]
@@ -163,8 +165,8 @@ public class SummersTests
             series.Decrement();
         }
 
-        series.DataCount.Should().Be(150);
-        series.Samples.First().Value.Should().Be(50);
+        series.DataCount.ShouldBe(150ul);
+        series.Samples.First().Value.ShouldBe(50);
     }
 
     [Fact]
@@ -179,7 +181,7 @@ public class SummersTests
             count++;
         }
 
-        series.DataCount.Should().Be((ulong) count);
+        series.DataCount.ShouldBe((ulong) count);
     }
 
     [Fact]
@@ -191,10 +193,10 @@ public class SummersTests
         series.AddNewData(baseTime, 10);
         series.AddNewData(baseTime.AddSeconds(1), 15);
 
-        series.Sum().Should().Be(25);
-        series.Min().Should().Be(10);
-        series.Max().Should().Be(15);
-        series.Average().Should().Be(12);
+        series.Sum().ShouldBe(25);
+        series.Min().ShouldBe(10);
+        series.Max().ShouldBe(15);
+        series.Average().ShouldBe(12);
     }
 
     [Fact]
@@ -206,10 +208,10 @@ public class SummersTests
         group.AddNewData("a", 2.0m);
         group.AddNewData("b", 3.0m);
 
-        group.Sum().Should().Be(6.5m);
-        group.Min().Should().Be(3.0m);
-        group.Max().Should().Be(3.5m);
-        group.Average().Should().Be(3.25m);
+        group.Sum().ShouldBe(6.5m);
+        group.Min().ShouldBe(3.0m);
+        group.Max().ShouldBe(3.5m);
+        group.Average().ShouldBe(3.25m);
     }
 
     [Fact]
@@ -217,10 +219,52 @@ public class SummersTests
     {
         var group = new NumberGroupTimeSeriesSummer<int>(TimeSpan.FromSeconds(1), deleteOverdueSamples: false);
 
-        group.Sum().Should().Be(0);
-        group.Average().Should().Be(0);
-        group.Min().Should().Be(0);
-        group.Max().Should().Be(0);
+        group.Sum().ShouldBe(0);
+        group.Average().ShouldBe(0);
+        group.Min().ShouldBe(0);
+        group.Max().ShouldBe(0);
+    }
+
+    [Fact]
+    public void IntGroupNumberTimeSeriesSummerAggregatesValues()
+    {
+        var group = new IntGroupNumberTimeSeriesSummer(TimeSpan.FromMilliseconds(5), samplesCount: 8, strategy: Strategy.Sum, deleteOverdueSamples: false);
+
+        group.AddNewData("alpha", 1);
+        group.AddNewData("alpha", 2);
+        group.AddNewData("beta", 3);
+
+        group.Sum().ShouldBe(6);
+        group.Max().ShouldBe(3);
+        group.Min().ShouldBe(3);
+    }
+
+    [Fact]
+    public void DoubleGroupTimeSeriesSummerAggregatesValues()
+    {
+        var group = new DoubleGroupTimeSeriesSummer(TimeSpan.FromSeconds(1), samplesCount: 8, strategy: Strategy.Sum, deleteOverdueSamples: false);
+
+        group.AddNewData("sensor", 1.5);
+        group.AddNewData("sensor", 2.5);
+        group.AddNewData("backup", 2.0);
+
+        group.Sum().ShouldBe(6.0);
+        group.Max().ShouldBe(4.0);
+        group.Min().ShouldBe(2.0);
+    }
+
+    [Fact]
+    public void FloatGroupNumberTimeSeriesSummerAggregatesValues()
+    {
+        var group = new FloatGroupNumberTimeSeriesSummer(TimeSpan.FromMilliseconds(100), samplesCount: 4, strategy: Strategy.Sum, deleteOverdueSamples: false);
+
+        group.AddNewData("alpha", 1.0f);
+        group.AddNewData("alpha", 2.0f);
+        group.AddNewData("beta", 3.5f);
+
+        group.Sum().ShouldBe(6.5f);
+        group.Max().ShouldBe(3.5f);
+        group.Min().ShouldBe(3.0f);
     }
 
     [Fact]
@@ -235,10 +279,59 @@ public class SummersTests
 
         summer.Resample(TimeSpan.FromSeconds(2), 10);
 
-        summer.SampleInterval.Should().Be(TimeSpan.FromSeconds(2));
-        summer.Samples.Should().HaveCount(2);
-        summer.Samples[start].Should().Be(3);
-        summer.Samples[start.AddSeconds(2)].Should().Be(3);
+        summer.SampleInterval.ShouldBe(TimeSpan.FromSeconds(2));
+        summer.Samples.ShouldHaveCount(2);
+        summer.Samples[start].ShouldBe(3);
+        summer.Samples[start.AddSeconds(2)].ShouldBe(3);
+    }
+
+    [Fact]
+    public void NumberTimeSeriesSummerResamplePreservesTotals()
+    {
+        var interval = TimeSpan.FromMilliseconds(20);
+        var summer = new NumberTimeSeriesSummer<int>(interval, maxSamplesCount: 8);
+        var start = DateTimeOffset.UtcNow;
+
+        for (var i = 0; i < 6; i++)
+        {
+            summer.AddNewData(start.AddMilliseconds(i * interval.TotalMilliseconds), 2);
+        }
+
+        var countBefore = summer.DataCount;
+        var lastBefore = summer.LastDate;
+
+        summer.Resample(TimeSpan.FromMilliseconds(40), samplesCount: 4);
+
+        summer.DataCount.ShouldBe(countBefore);
+        summer.LastDate.ShouldBe(lastBefore.Round(TimeSpan.FromMilliseconds(40)));
+        summer.Sum().ShouldBe(12);
+    }
+
+    [Fact]
+    public void DoubleTimeSeriesSummerConstructorsRespectStrategy()
+    {
+        var explicitStrategy = new DoubleTimeSeriesSummer(TimeSpan.FromMilliseconds(5), maxSamplesCount: 3, strategy: Strategy.Max);
+        explicitStrategy.Strategy.ShouldBe(Strategy.Max);
+
+        var withCount = new DoubleTimeSeriesSummer(TimeSpan.FromMilliseconds(5), maxSamplesCount: 2);
+        withCount.Strategy.ShouldBe(Strategy.Sum);
+
+        var defaultCount = new DoubleTimeSeriesSummer(TimeSpan.FromMilliseconds(5));
+        defaultCount.Strategy.ShouldBe(Strategy.Sum);
+    }
+
+    [Fact]
+    public void FloatTimeSeriesSummerAggregatesValues()
+    {
+        var summer = new FloatTimeSeriesSummer(TimeSpan.FromMilliseconds(30), maxSamplesCount: 4);
+        var now = DateTimeOffset.UtcNow;
+
+        summer.AddNewData(now, 1.5f);
+        summer.AddNewData(now.AddMilliseconds(30), 2.5f);
+
+        summer.Sum().ShouldBe(4.0f);
+        summer.Min().ShouldNotBeNull();
+        summer.Max().ShouldNotBeNull();
     }
 
     // [Fact]
@@ -254,10 +347,10 @@ public class SummersTests
     //         count++;
     //     }
     //
-    //     series.TimeSeries.Count.Should().BeGreaterThan(0);
+    //     series.TimeSeries.Count.ShouldBeGreaterThan(0);
     //     await Task.Delay(interval * 102);
     //
-    //     series.TimeSeries.Count.Should().Be(0);
+    //     series.TimeSeries.Count.ShouldBe(0);
     // }
     //
     // [Fact]
@@ -272,8 +365,8 @@ public class SummersTests
     //         count++;
     //     }
     //
-    //     series.TimeSeries.Count.Should().Be(1);
-    //     series.TimeSeries.Values.SingleOrDefault().Samples.SingleOrDefault().Value.Should().Be(99);
+    //     series.TimeSeries.Count.ShouldBe(1);
+    //     series.TimeSeries.Values.SingleOrDefault().Samples.SingleOrDefault().Value.ShouldBe(99);
     // }
 
     [Fact]
@@ -297,14 +390,14 @@ public class SummersTests
 
         await Task.WhenAll(seriesA, seriesB);
 
-        seriesA.Result.DataCount.Should().Be(100);
-        seriesB.Result.DataCount.Should().Be(100);
+        seriesA.Result.DataCount.ShouldBe(100ul);
+        seriesB.Result.DataCount.ShouldBe(100ul);
 
         seriesA.Result.Merge(seriesB.Result);
 
-        seriesA.Result.DataCount.Should().Be(200);
+        seriesA.Result.DataCount.ShouldBe(200ul);
 
-        seriesA.Result.Samples.Select(s => s.Value).Sum().Should().Be(200);
+        seriesA.Result.Samples.Select(s => s.Value).Sum().ShouldBe(200);
     }
 
     [Fact]
@@ -345,25 +438,25 @@ public class SummersTests
         var seriesFeature = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10), 100);
         seriesFeature.MarkupAllSamples(MarkupDirection.Feature);
         seriesFeature.AddNewData(1);
-        (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.Should().BeGreaterThanOrEqualTo(990);
-        (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.Should().BeLessThanOrEqualTo(1000);
+        (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
+        (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);
         var seriesFeatureOrdered = seriesFeature.Samples.OrderBy(o => o.Key).Take(10);
-        seriesFeatureOrdered.Any(a => a.Value.Count == 1).Should().BeTrue();
+        seriesFeatureOrdered.Any(a => a.Value.Count == 1).ShouldBeTrue();
 
         var seriesPast = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10));
         seriesPast.MarkupAllSamples();
         seriesPast.AddNewData(1);
-        (seriesPast.Samples.Keys.Max() - seriesPast.Samples.Keys.Min()).TotalMilliseconds.Should().BeGreaterThanOrEqualTo(990);
-        (seriesPast.Samples.Keys.Max() - seriesPast.Samples.Keys.Min()).TotalMilliseconds.Should().BeLessThanOrEqualTo(1000);
+        (seriesPast.Samples.Keys.Max() - seriesPast.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
+        (seriesPast.Samples.Keys.Max() - seriesPast.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);
         var seriesPastOrdered = seriesPast.Samples.OrderBy(o => o.Key).TakeLast(10);
-        seriesPastOrdered.Any(a => a.Value.Count == 1).Should().BeTrue();
+        seriesPastOrdered.Any(a => a.Value.Count == 1).ShouldBeTrue();
 
         var seriesMiddle = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10), 100);
         seriesMiddle.MarkupAllSamples(MarkupDirection.Middle);
         seriesMiddle.AddNewData(1);
-        (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()).TotalMilliseconds.Should().BeGreaterThanOrEqualTo(990);
-        (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()).TotalMilliseconds.Should().BeLessThanOrEqualTo(1000);
+        (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
+        (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);
         var seriesMiddleOrdered = seriesMiddle.Samples.OrderBy(o => o.Key).Skip(45).Take(10);
-        seriesMiddleOrdered.Any(a => a.Value.Count == 1).Should().BeTrue();
+        seriesMiddleOrdered.Any(a => a.Value.Count == 1).ShouldBeTrue();
     }
 }

@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Concurrent;
 using System.Linq;
+using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
@@ -103,16 +105,33 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Co
         SampleInterval = sampleInterval;
         MaxSamplesCount = samplesCount;
 
+        var previousCount = DataCount;
+        var previousLastDate = LastDate;
+
         var snapshot = Storage.ToArray();
         ResetSamplesStorage();
+        SetDataCount(0);
+
+        DateTimeOffset? lastObservedSample = null;
 
         foreach (var (key, value) in snapshot)
         {
+            var roundedKey = key.Round(SampleInterval);
+            var queue = GetOrCreateSample(roundedKey, static () => new ConcurrentQueue<T>());
+
             foreach (var item in value)
             {
-                AddNewData(key, item);
+                queue.Enqueue(item);
+            }
+
+            if (!lastObservedSample.HasValue || roundedKey > lastObservedSample.Value)
+            {
+                lastObservedSample = roundedKey;
             }
         }
+
+        SetDataCount(previousCount);
+        LastDate = lastObservedSample ?? previousLastDate;
     }
 
     private bool TryGetBoundarySample(Func<DateTimeOffset, DateTimeOffset, bool> comparer, out DateTimeOffset key, out ConcurrentQueue<T> queue)

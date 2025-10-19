@@ -1,5 +1,7 @@
-using FluentAssertions;
 using ManagedCode.TimeSeries.Accumulators;
+using ManagedCode.TimeSeries.Extensions;
+using ManagedCode.TimeSeries.Tests.Assertions;
+using Shouldly;
 using Xunit;
 
 namespace ManagedCode.TimeSeries.Tests;
@@ -18,14 +20,14 @@ public class AccumulatorsTests
             series.AddNewData(i);
         }
 
-        series.DataCount.Should().Be(Convert.ToUInt64(count));
+        series.DataCount.ShouldBe(Convert.ToUInt64(count));
 
         var step = 0;
         foreach (var queue in series.Samples)
         {
             foreach (var item in queue.Value)
             {
-                item.Should().Be(step);
+                item.ShouldBe(step);
                 step++;
             }
         }
@@ -43,15 +45,15 @@ public class AccumulatorsTests
             series.AddNewData(i);
         }
 
-        series.DataCount.Should().Be(Convert.ToUInt64(count)); //because it's total; number of samples
-        series.Samples.Count.Should().Be(samplesCount); //because it's total; number of samples
+        series.DataCount.ShouldBe(Convert.ToUInt64(count)); //because it's total; number of samples
+        series.Samples.Count.ShouldBe(samplesCount); //because it's total; number of samples
 
         var step = count - samplesCount - 1;
         foreach (var queue in series.Samples)
         {
             foreach (var item in queue.Value)
             {
-                item.Should().Be(step);
+                item.ShouldBe(step);
                 step++;
             }
         }
@@ -72,15 +74,66 @@ public class AccumulatorsTests
         group.AddNewData("alpha", origin.AddMilliseconds(60), 2);
         group.AddNewData("beta", origin, 5);
 
-        group.TryGet("alpha", out var alphaAccumulator).Should().BeTrue();
-        alphaAccumulator!.DataCount.Should().Be(2);
-        alphaAccumulator.Samples.Should().HaveCount(2);
+        group.TryGet("alpha", out var alphaAccumulator).ShouldBeTrue();
+        alphaAccumulator.ShouldNotBeNull();
+        alphaAccumulator!.DataCount.ShouldBe(2ul);
+        alphaAccumulator.Samples.ShouldHaveCount(2);
 
         var snapshot = group.Snapshot();
-        snapshot.Count.Should().Be(2);
+        snapshot.Count.ShouldBe(2);
 
-        group.Remove("beta").Should().BeTrue();
-        group.TryGet("beta", out _).Should().BeFalse();
+        group.Remove("beta").ShouldBeTrue();
+        group.TryGet("beta", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void DoubleAccumulatorStoresValues()
+    {
+        var interval = TimeSpan.FromMilliseconds(25);
+        var accumulator = new DoubleTimeSeriesAccumulator(interval, maxSamplesCount: 4);
+        var now = DateTimeOffset.UtcNow;
+
+        accumulator.AddNewData(now, 1.5);
+        accumulator.AddNewData(now.AddMilliseconds(25), 2.5);
+
+        accumulator.Samples.ShouldHaveCount(2);
+        accumulator.Samples.TryGetValue(now.Round(interval), out var firstQueue).ShouldBeTrue();
+        firstQueue.ShouldNotBeNull();
+        firstQueue!.ShouldContain(1.5);
+    }
+
+    [Fact]
+    public void DoubleGroupAccumulatorHandlesMultipleStreams()
+    {
+        var group = new DoubleGroupTimeSeriesAccumulator(TimeSpan.FromMilliseconds(50), maxSamplesCount: 2, deleteOverdueSamples: false);
+        var origin = DateTimeOffset.UtcNow;
+
+        group.AddNewData("alpha", origin, 1.0);
+        group.AddNewData("alpha", origin.AddMilliseconds(50), 2.0);
+        group.AddNewData("beta", origin, 3.0);
+
+        group.TryGet("alpha", out var alpha).ShouldBeTrue();
+        alpha.ShouldNotBeNull();
+        alpha!.Samples.ShouldHaveCount(2);
+        alpha.DataCount.ShouldBe(2ul);
+
+        group.TryGet("beta", out var beta).ShouldBeTrue();
+        beta.ShouldNotBeNull();
+        beta!.Samples.ShouldHaveCount(1);
+    }
+
+    [Fact]
+    public void FloatGroupAccumulatorTracksSamples()
+    {
+        var group = new FloatGroupTimeSeriesAccumulator(TimeSpan.FromMilliseconds(40), maxSamplesCount: 2, deleteOverdueSamples: false);
+        var origin = DateTimeOffset.UtcNow;
+
+        group.AddNewData("alpha", origin, 1.0f);
+        group.AddNewData("alpha", origin.AddMilliseconds(40), 2.0f);
+
+        group.TryGet("alpha", out var alpha).ShouldBeTrue();
+        alpha.ShouldNotBeNull();
+        alpha!.Samples.ShouldHaveCount(2);
     }
 
     [Fact]
@@ -94,9 +147,10 @@ public class AccumulatorsTests
 
         series.Trim();
 
-        series.Samples.Should().HaveCount(1);
+        series.Samples.ShouldHaveCount(1);
         var queue = series.Samples.Single().Value;
-        queue.Should().ContainSingle(value => value == 7);
+        queue.Count.ShouldBe(1);
+        queue.ShouldContain(7);
     }
     
     
@@ -114,14 +168,14 @@ public class AccumulatorsTests
             series.AddNewData(i);
         }
 
-        series.DataCount.Should().Be(1000);
+        series.DataCount.ShouldBe(1000ul);
 
         var step = 0;
         foreach (var queue in series.Samples)
         {
             foreach (var item in queue.Value)
             {
-                item.Should().Be(step);
+                item.ShouldBe(step);
                 step++;
             }
         }
@@ -150,9 +204,9 @@ public class AccumulatorsTests
     //     series.AddNewData(dt, "3");
     //     series.AddNewData(dt, "2");
     //
-    //     series.DataCount.Should().Be(12);
-    //     series.Samples.First().Value.Count.Should().Be(3);
-    //     series.Samples.Last().Value.Count.Should().Be(3);
+    //     series.DataCount.ShouldBe(12);
+    //     series.Samples.First().Value.Count.ShouldBe(3);
+    //     series.Samples.Last().Value.Count.ShouldBe(3);
     // }
 
     [Fact]
@@ -166,7 +220,7 @@ public class AccumulatorsTests
             series.AddNewData(i);
         }
 
-        series.Samples.Count.Should().Be(10);
+        series.Samples.Count.ShouldBe(10);
     }
 
     [Fact]
@@ -186,14 +240,14 @@ public class AccumulatorsTests
             series.AddNewData(i);
         }
 
-        series.IsFull.Should().BeTrue();
+        series.IsFull.ShouldBeTrue();
     }
 
     [Fact]
     public void IsEmpty()
     {
         var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10);
-        series.IsEmpty.Should().BeTrue();
+        series.IsEmpty.ShouldBeTrue();
     }
 
     [Fact]
@@ -216,12 +270,12 @@ public class AccumulatorsTests
 
         await Task.WhenAll(seriesA, seriesB);
 
-        seriesA.Result.Samples.Count.Should().Be(10);
-        seriesB.Result.Samples.Count.Should().Be(10);
+        seriesA.Result.Samples.Count.ShouldBe(10);
+        seriesB.Result.Samples.Count.ShouldBe(10);
 
         seriesA.Result.Merge(seriesB.Result);
 
-        seriesA.Result.Samples.Count.Should().Be(10);
+        seriesA.Result.Samples.Count.ShouldBe(10);
 
         var seriesList = new List<IntTimeSeriesAccumulator>();
         seriesList.Add(await FillFunc());
@@ -242,7 +296,7 @@ public class AccumulatorsTests
             }
         }
 
-        onlineExpertsPerHourTimeSeries.Samples.Count.Should().Be(10);
+        onlineExpertsPerHourTimeSeries.Samples.Count.ShouldBe(10);
     }
 
   
@@ -270,25 +324,25 @@ public class AccumulatorsTests
         var seriesFeature = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10), 100);
         seriesFeature.MarkupAllSamples(MarkupDirection.Feature);
         seriesFeature.AddNewData(1);
-        (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.Should().BeGreaterThanOrEqualTo(990);
-        (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.Should().BeLessThanOrEqualTo(1000);
+        (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
+        (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);
         var seriesFeatureOrdered = seriesFeature.Samples.OrderBy(o => o.Key).Take(10);
-        seriesFeatureOrdered.Any(a => a.Value.Count == 1).Should().BeTrue();
+        seriesFeatureOrdered.Any(a => a.Value.Count == 1).ShouldBeTrue();
 
         var seriesPast = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10));
         seriesPast.MarkupAllSamples();
         seriesPast.AddNewData(1);
-        (seriesPast.Samples.Keys.Max() - seriesPast.Samples.Keys.Min()).TotalMilliseconds.Should().BeGreaterThanOrEqualTo(990);
-        (seriesPast.Samples.Keys.Max() - seriesPast.Samples.Keys.Min()).TotalMilliseconds.Should().BeLessThanOrEqualTo(1000);
+        (seriesPast.Samples.Keys.Max() - seriesPast.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
+        (seriesPast.Samples.Keys.Max() - seriesPast.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);
         var seriesPastOrdered = seriesPast.Samples.OrderBy(o => o.Key).TakeLast(10);
-        seriesPastOrdered.Any(a => a.Value.Count == 1).Should().BeTrue();
+        seriesPastOrdered.Any(a => a.Value.Count == 1).ShouldBeTrue();
 
         var seriesMiddle = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10), 100);
         seriesMiddle.MarkupAllSamples(MarkupDirection.Middle);
         seriesMiddle.AddNewData(1);
-        (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()).TotalMilliseconds.Should().BeGreaterThanOrEqualTo(990);
-        (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()).TotalMilliseconds.Should().BeLessThanOrEqualTo(1000);
+        (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
+        (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);
         var seriesMiddleOrdered = seriesMiddle.Samples.OrderBy(o => o.Key).Skip(45).Take(10);
-        seriesMiddleOrdered.Any(a => a.Value.Count == 1).Should().BeTrue();
+        seriesMiddleOrdered.Any(a => a.Value.Count == 1).ShouldBeTrue();
     }
 }

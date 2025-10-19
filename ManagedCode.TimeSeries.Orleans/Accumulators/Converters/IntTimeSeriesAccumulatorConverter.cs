@@ -1,6 +1,6 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using ManagedCode.TimeSeries.Abstractions;
 using ManagedCode.TimeSeries.Accumulators;
 using ManagedCode.TimeSeries.Summers;
@@ -15,18 +15,27 @@ public sealed class IntTimeSeriesAccumulatorConverter<T> : IConverter<IntTimeSer
     public IntTimeSeriesAccumulator ConvertFromSurrogate(in TimeSeriesAccumulatorsSurrogate<int> surrogate)
     {
         var series = new IntTimeSeriesAccumulator(surrogate.SampleInterval, surrogate.MaxSamplesCount);
-        var converted = surrogate.Samples.ToDictionary(
-            static kvp => kvp.Key,
-            static kvp => new ConcurrentQueue<int>(kvp.Value));
+        var converted = new Dictionary<DateTimeOffset, ConcurrentQueue<int>>(surrogate.Samples.Count);
+
+        foreach (var pair in surrogate.Samples)
+        {
+            converted[pair.Key] = new ConcurrentQueue<int>(pair.Value);
+        }
+
         series.InitInternal(converted, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
         return series;
     }
 
     public TimeSeriesAccumulatorsSurrogate<int> ConvertToSurrogate(in IntTimeSeriesAccumulator value)
     {
-        var converted = value.Samples.ToDictionary(
-            static kvp => kvp.Key,
-            static kvp => new Queue<int>(kvp.Value));
+        var samples = value.Samples;
+        var converted = new Dictionary<DateTimeOffset, Queue<int>>(samples.Count);
+
+        foreach (var pair in samples)
+        {
+            converted[pair.Key] = new Queue<int>(pair.Value);
+        }
+
         return new TimeSeriesAccumulatorsSurrogate<int>(converted, value.Start, value.End,
             value.SampleInterval, value.MaxSamplesCount, value.LastDate, value.DataCount);
     }

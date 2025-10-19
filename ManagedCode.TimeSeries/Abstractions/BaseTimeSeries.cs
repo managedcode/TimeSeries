@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -104,7 +105,12 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
     public static TSelf Empty(TimeSpan? sampleInterval = null, int maxSamplesCount = 0)
     {
-        return (TSelf)Activator.CreateInstance(typeof(TSelf), sampleInterval ?? TimeSpan.Zero, maxSamplesCount)!;
+        if (sampleInterval is null || sampleInterval.Value <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleInterval), "Sample interval must be a positive value.");
+        }
+
+        return (TSelf)Activator.CreateInstance(typeof(TSelf), sampleInterval.Value, maxSamplesCount)!;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -239,6 +245,11 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         }
 
         Interlocked.Add(ref _dataCount, unchecked((long)value));
+    }
+
+    protected void SetDataCount(ulong value)
+    {
+        Volatile.Write(ref _dataCount, unchecked((long)value));
     }
 
     protected TSample GetOrCreateSample(DateTimeOffset key, Func<TSample> factory)

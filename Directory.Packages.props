@@ -7,7 +7,7 @@
         <PackageVersion Include="coverlet.collector" Version="6.0.4" />
         <PackageVersion Include="coverlet.msbuild" Version="6.0.4" />
         <PackageVersion Include="DotNet.ReproducibleBuilds" Version="1.2.39" />
-        <PackageVersion Include="FluentAssertions" Version="8.7.1" />
+        <PackageVersion Include="Shouldly" Version="4.2.1" />
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.0.10" />
         <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
         <PackageVersion Include="Microsoft.Orleans.Sdk" Version="9.2.1" />

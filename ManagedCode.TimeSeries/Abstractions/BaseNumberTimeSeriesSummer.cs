@@ -1,6 +1,8 @@
+using System;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
@@ -52,13 +54,30 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
         SampleInterval = sampleInterval;
         MaxSamplesCount = samplesCount;
 
+        var previousCount = DataCount;
+        var previousLastDate = LastDate;
+
         var snapshot = Storage.ToArray();
         ResetSamplesStorage();
+        SetDataCount(0);
+
+        DateTimeOffset? lastObservedSample = null;
 
         foreach (var (key, value) in snapshot)
         {
-            AddNewData(key, value);
+            var roundedKey = key.Round(SampleInterval);
+            AddOrUpdateSample(roundedKey,
+                () => value,
+                current => Update(current, value));
+
+            if (!lastObservedSample.HasValue || roundedKey > lastObservedSample.Value)
+            {
+                lastObservedSample = roundedKey;
+            }
         }
+
+        SetDataCount(previousCount);
+        LastDate = lastObservedSample ?? previousLastDate;
     }
 
     private TNumber Update(TNumber left, TNumber right)
