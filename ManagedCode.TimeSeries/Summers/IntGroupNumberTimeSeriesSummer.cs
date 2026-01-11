@@ -2,10 +2,9 @@ using ManagedCode.TimeSeries.Abstractions;
 
 namespace ManagedCode.TimeSeries.Summers;
 
-public class IntGroupNumberTimeSeriesSummer : NumberGroupTimeSeriesSummer<int>
+/// <summary>
+/// Grouped numeric summer for integer values.
+/// </summary>
+public class IntGroupNumberTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy, bool deleteOverdueSamples) : NumberGroupTimeSeriesSummer<int>(sampleInterval, samplesCount, strategy, deleteOverdueSamples)
 {
-    public IntGroupNumberTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy, bool deleteOverdueSamples)
-        : base(sampleInterval, samplesCount, strategy, deleteOverdueSamples)
-    {
-    }
 }

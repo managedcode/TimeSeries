@@ -1,14 +1,14 @@
-using System;
-using System.Collections.Generic;
 using ManagedCode.TimeSeries.Summers;
-using Orleans;
 
 namespace ManagedCode.TimeSeries.Orleans;
 
-// This is a converter which converts between the surrogate and the foreign type.
+/// <summary>
+/// Orleans converter for <see cref="IntTimeSeriesSummer"/>.
+/// </summary>
 [RegisterConverter]
-public sealed class IntTimeSeriesSummerConverter<T> : IConverter<IntTimeSeriesSummer, TimeSeriesSummerSurrogate<int>>
+public sealed class IntTimeSeriesSummerConverter : IConverter<IntTimeSeriesSummer, TimeSeriesSummerSurrogate<int>>
 {
+    /// <inheritdoc />
     public IntTimeSeriesSummer ConvertFromSurrogate(in TimeSeriesSummerSurrogate<int> surrogate)
     {
         var series = new IntTimeSeriesSummer(surrogate.SampleInterval, surrogate.MaxSamplesCount, surrogate.Strategy);
@@ -16,13 +16,15 @@ public sealed class IntTimeSeriesSummerConverter<T> : IConverter<IntTimeSeriesSu
 
         foreach (var pair in surrogate.Samples)
         {
-            converted[pair.Key] = pair.Value;
+            var normalizedKey = new DateTimeOffset(pair.Key.UtcDateTime, TimeSpan.Zero);
+            converted[normalizedKey] = pair.Value;
         }
 
         series.InitInternal(converted, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
         return series;
     }
 
+    /// <inheritdoc />
     public TimeSeriesSummerSurrogate<int> ConvertToSurrogate(in IntTimeSeriesSummer value)
     {
         var samples = value.Samples;

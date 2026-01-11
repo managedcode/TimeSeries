@@ -1,47 +1,31 @@
-using System;
-using System.Collections.Generic;
-using System.Numerics;
-using System.Runtime.InteropServices.JavaScript;
-using ManagedCode.TimeSeries.Abstractions;
-using Orleans;
-
 namespace ManagedCode.TimeSeries.Orleans;
 
-// This is the surrogate which will act as a stand-in for the foreign type.
-// Surrogates should use plain fields instead of properties for better perfomance.
+/// <summary>
+/// Orleans surrogate for time-series accumulators.
+/// </summary>
+// Surrogates should use plain fields instead of properties for better performance.
 [Immutable]
 [GenerateSerializer]
-public struct TimeSeriesAccumulatorsSurrogate<T>
+public struct TimeSeriesAccumulatorsSurrogate<T>(Dictionary<DateTimeOffset, Queue<T>> samples,
+    DateTimeOffset start,
+    DateTimeOffset end,
+    TimeSpan sampleInterval,
+    int maxSamplesCount,
+    DateTimeOffset lastDate,
+    ulong dataCount)
 {
-    public TimeSeriesAccumulatorsSurrogate(Dictionary<DateTimeOffset, Queue<T>> samples,
-        DateTimeOffset start,
-        DateTimeOffset end,
-        TimeSpan sampleInterval,
-        int maxSamplesCount,
-        DateTimeOffset lastDate,
-        ulong dataCount)
-    {
-        Samples = samples;
-        Start = start;
-        End = end;
-        SampleInterval = sampleInterval;
-        MaxSamplesCount = maxSamplesCount;
-        LastDate = lastDate;
-        DataCount = dataCount;
-    }
-
     [Id(0)]
-    public Dictionary<DateTimeOffset, Queue<T>> Samples;
+    public Dictionary<DateTimeOffset, Queue<T>> Samples = samples;
     [Id(1)]
-    public DateTimeOffset Start;
+    public DateTimeOffset Start = start;
     [Id(2)]
-    public DateTimeOffset End;
+    public DateTimeOffset End = end;
     [Id(3)]
-    public TimeSpan SampleInterval;
+    public TimeSpan SampleInterval = sampleInterval;
     [Id(4)]
-    public int MaxSamplesCount;
+    public int MaxSamplesCount = maxSamplesCount;
     [Id(5)]
-    public DateTimeOffset LastDate;
+    public DateTimeOffset LastDate = lastDate;
     [Id(6)]
-    public ulong DataCount;
+    public ulong DataCount = dataCount;
 }

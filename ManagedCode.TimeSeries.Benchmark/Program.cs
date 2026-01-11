@@ -1,4 +1,3 @@
-﻿using System.Reflection.Emit;
 using BenchmarkDotNet.Running;
 
-var summary = BenchmarkRunner.Run(typeof(Program).Assembly);
+var _ = BenchmarkRunner.Run(typeof(Program).Assembly);

@@ -1,9 +1,8 @@
-using Shouldly;
 using ManagedCode.TimeSeries.Abstractions;
 using ManagedCode.TimeSeries.Accumulators;
-using ManagedCode.TimeSeries.Extensions;
 using ManagedCode.TimeSeries.Summers;
 using ManagedCode.TimeSeries.Tests.Assertions;
+using Shouldly;
 using Xunit;
 
 namespace ManagedCode.TimeSeries.Tests;
@@ -11,13 +10,14 @@ namespace ManagedCode.TimeSeries.Tests;
 public class SummersTests
 {
     [Fact]
-    public async Task Accumulator()
+    public void Accumulator()
     {
-        var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1));
+        var interval = TimeSpan.FromMilliseconds(10);
+        var series = new IntTimeSeriesAccumulator(interval);
+        var start = DateTimeOffset.UtcNow;
         for (var i = 0; i < 1000; i++)
         {
-            await Task.Delay(new Random().Next(1, 5));
-            series.AddNewData(i);
+            series.AddNewData(start.AddTicks(interval.Ticks * i), i);
         }
 
         series.DataCount.ShouldBe(1000ul);
@@ -62,34 +62,30 @@ public class SummersTests
     // }
 
     [Fact]
-    public async Task AccumulatorLimit()
+    public void AccumulatorLimit()
     {
-        var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10);
+        var interval = TimeSpan.FromMilliseconds(10);
+        var series = new IntTimeSeriesAccumulator(interval, 10);
+        var start = DateTimeOffset.UtcNow;
 
         for (var i = 0; i < 1000; i++)
         {
-            await Task.Delay(new Random().Next(1, 5));
-            series.AddNewData(i);
+            series.AddNewData(start.AddTicks(interval.Ticks * i), i);
         }
 
         series.Samples.Count.ShouldBe(10);
     }
 
     [Fact]
-    public async Task IsFull()
+    public void IsFull()
     {
-        var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10);
+        var interval = TimeSpan.FromMilliseconds(10);
+        var series = new IntTimeSeriesAccumulator(interval, 10);
+        var start = DateTimeOffset.UtcNow;
 
-        for (var i = 0; i < 1000; i++)
+        for (var i = 0; i < 10; i++)
         {
-            await Task.Delay(new Random().Next(1, 5));
-
-            if (series.IsFull)
-            {
-                break;
-            }
-
-            series.AddNewData(i);
+            series.AddNewData(start.AddTicks(interval.Ticks * i), i);
         }
 
         series.IsFull.ShouldBeTrue();
@@ -103,52 +99,52 @@ public class SummersTests
     }
 
     [Fact]
-    public async Task AccumulatorMerge()
+    public void AccumulatorMerge()
     {
-        Func<Task<IntTimeSeriesAccumulator>> FillFunc = async () =>
+        var interval = TimeSpan.FromMilliseconds(10);
+        Func<IntTimeSeriesAccumulator> fillFunc = () =>
         {
-            var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10);
+            var series = new IntTimeSeriesAccumulator(interval, 10);
+            var start = DateTimeOffset.UtcNow;
             for (var i = 0; i < 1000; i++)
             {
-                await Task.Delay(new Random().Next(1, 5));
-                series.AddNewData(i);
+                series.AddNewData(start.AddTicks(interval.Ticks * i), i);
             }
 
             return series;
         };
 
-        var seriesA = FillFunc();
-        var seriesB = FillFunc();
+        var seriesA = fillFunc();
+        var seriesB = fillFunc();
 
-        await Task.WhenAll(seriesA, seriesB);
+        seriesA.Samples.Count.ShouldBe(10);
+        seriesB.Samples.Count.ShouldBe(10);
 
-        seriesA.Result.Samples.Count.ShouldBe(10);
-        seriesB.Result.Samples.Count.ShouldBe(10);
+        seriesA.Merge(seriesB);
 
-        seriesA.Result.Merge(seriesB.Result);
-
-        seriesA.Result.Samples.Count.ShouldBe(10);
+        seriesA.Samples.Count.ShouldBe(10);
 
         var seriesList = new List<IntTimeSeriesAccumulator>();
-        seriesList.Add(await FillFunc());
-        seriesList.Add(await FillFunc());
-        seriesList.Add(await FillFunc());
-        seriesList.Add(new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10));
+        seriesList.Add(fillFunc());
+        seriesList.Add(fillFunc());
+        seriesList.Add(fillFunc());
+        seriesList.Add(new IntTimeSeriesAccumulator(interval, 10));
 
-        IntTimeSeriesAccumulator onlineExpertsPerHourTimeSeries = null;
-        foreach (var item in seriesList.ToArray())
+        IntTimeSeriesAccumulator? merged = null;
+        foreach (var item in seriesList)
         {
-            if (onlineExpertsPerHourTimeSeries == null)
+            if (merged is null)
             {
-                onlineExpertsPerHourTimeSeries = item;
+                merged = item;
             }
             else
             {
-                onlineExpertsPerHourTimeSeries.Merge(item);
+                merged.Merge(item);
             }
         }
 
-        onlineExpertsPerHourTimeSeries.Samples.Count.ShouldBe(10);
+        merged.ShouldNotBeNull();
+        merged!.Samples.Count.ShouldBe(10);
     }
 
     [Fact]
@@ -170,18 +166,19 @@ public class SummersTests
     }
 
     [Fact]
-    public async Task Summer()
+    public void Summer()
     {
-        var series = new IntTimeSeriesSummer(TimeSpan.FromSeconds(0.1));
+        var interval = TimeSpan.FromMilliseconds(10);
+        var series = new IntTimeSeriesSummer(interval);
+        var start = DateTimeOffset.UtcNow;
         var count = 0;
         for (var i = 0; i < 100; i++)
         {
-            await Task.Delay(new Random().Next(10, 50));
-            series.AddNewData(i);
+            series.AddNewData(start.AddTicks(interval.Ticks * i), i);
             count++;
         }
 
-        series.DataCount.ShouldBe((ulong) count);
+        series.DataCount.ShouldBe((ulong)count);
     }
 
     [Fact]
@@ -228,7 +225,7 @@ public class SummersTests
     [Fact]
     public void IntGroupNumberTimeSeriesSummerAggregatesValues()
     {
-        var group = new IntGroupNumberTimeSeriesSummer(TimeSpan.FromMilliseconds(5), samplesCount: 8, strategy: Strategy.Sum, deleteOverdueSamples: false);
+        var group = new IntGroupNumberTimeSeriesSummer(TimeSpan.FromSeconds(1), samplesCount: 8, strategy: Strategy.Sum, deleteOverdueSamples: false);
 
         group.AddNewData("alpha", 1);
         group.AddNewData("alpha", 2);
@@ -298,12 +295,11 @@ public class SummersTests
         }
 
         var countBefore = summer.DataCount;
-        var lastBefore = summer.LastDate;
 
         summer.Resample(TimeSpan.FromMilliseconds(40), samplesCount: 4);
 
         summer.DataCount.ShouldBe(countBefore);
-        summer.LastDate.ShouldBe(lastBefore.Round(TimeSpan.FromMilliseconds(40)));
+        summer.LastDate.ShouldBe(summer.Samples.Keys.Max());
         summer.Sum().ShouldBe(12);
     }
 
@@ -370,73 +366,72 @@ public class SummersTests
     // }
 
     [Fact]
-    public async Task SummerMerge()
+    public void SummerMerge()
     {
-        Func<Task<IntTimeSeriesSummer>> FillFunc = async () =>
+        var interval = TimeSpan.FromMilliseconds(10);
+        Func<IntTimeSeriesSummer> fillFunc = () =>
         {
-            var series = new IntTimeSeriesSummer(TimeSpan.FromSeconds(0.1));
+            var series = new IntTimeSeriesSummer(interval);
+            var start = DateTimeOffset.UtcNow;
 
             for (var i = 0; i < 100; i++)
             {
-                await Task.Delay(new Random().Next(10, 50));
-                series.AddNewData(1);
+                series.AddNewData(start.AddTicks(interval.Ticks * i), 1);
             }
 
             return series;
         };
 
-        var seriesA = FillFunc();
-        var seriesB = FillFunc();
+        var seriesA = fillFunc();
+        var seriesB = fillFunc();
 
-        await Task.WhenAll(seriesA, seriesB);
+        seriesA.DataCount.ShouldBe(100ul);
+        seriesB.DataCount.ShouldBe(100ul);
 
-        seriesA.Result.DataCount.ShouldBe(100ul);
-        seriesB.Result.DataCount.ShouldBe(100ul);
+        seriesA.Merge(seriesB);
 
-        seriesA.Result.Merge(seriesB.Result);
+        seriesA.DataCount.ShouldBe(200ul);
 
-        seriesA.Result.DataCount.ShouldBe(200ul);
-
-        seriesA.Result.Samples.Select(s => s.Value).Sum().ShouldBe(200);
+        seriesA.Samples.Select(s => s.Value).Sum().ShouldBe(200);
     }
 
     [Fact]
-    public async Task Resample()
+    public void Resample()
     {
-        var seriesFeature = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(2), 100);
+        var interval = TimeSpan.FromMilliseconds(2);
+        var seriesFeature = new IntTimeSeriesAccumulator(interval, 100);
+        var start = DateTimeOffset.UtcNow;
 
         for (var i = 0; i < 100; i++)
         {
-            seriesFeature.AddNewData(i);
-
-            await Task.Delay(1);
+            seriesFeature.AddNewData(start.AddMilliseconds(i * interval.TotalMilliseconds), i);
         }
 
         seriesFeature.Resample(TimeSpan.FromMilliseconds(4), 100);
-        var sad = seriesFeature;
+        seriesFeature.SampleInterval.ShouldBe(TimeSpan.FromMilliseconds(4));
     }
 
     [Fact]
-    public async Task ResampleSummer()
+    public void ResampleSummer()
     {
-        var seriesFeature = new IntTimeSeriesSummer(TimeSpan.FromMilliseconds(2), 100);
+        var interval = TimeSpan.FromMilliseconds(2);
+        var seriesFeature = new IntTimeSeriesSummer(interval, 100);
+        var start = DateTimeOffset.UtcNow;
 
         for (var i = 0; i < 100; i++)
         {
-            seriesFeature.AddNewData(i);
-
-            await Task.Delay(1);
+            seriesFeature.AddNewData(start.AddMilliseconds(i * interval.TotalMilliseconds), i);
         }
 
         seriesFeature.Resample(TimeSpan.FromMilliseconds(4), 100);
+        seriesFeature.SampleInterval.ShouldBe(TimeSpan.FromMilliseconds(4));
     }
-
 
     [Fact]
     public void MarkupAllSamples()
     {
         var seriesFeature = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10), 100);
-        seriesFeature.MarkupAllSamples(MarkupDirection.Feature);
+        seriesFeature.MarkupAllSamples(MarkupDirection.Future);
         seriesFeature.AddNewData(1);
         (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
         (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);

@@ -2,6 +2,9 @@ using ManagedCode.TimeSeries.Abstractions;
 
 namespace ManagedCode.TimeSeries.Summers;
 
+/// <summary>
+/// Numeric summer for integer values.
+/// </summary>
 public class IntTimeSeriesSummer : BaseNumberTimeSeriesSummer<int, IntTimeSeriesSummer>
 {
     public IntTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount, strategy)

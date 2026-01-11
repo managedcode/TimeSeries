@@ -3,20 +3,24 @@ using ManagedCode.TimeSeries.Abstractions;
 
 namespace ManagedCode.TimeSeries.Summers;
 
-public class NumberGroupTimeSeriesSummer<TNumber> : BaseGroupNumberTimeSeriesSummer<TNumber, NumberTimeSeriesSummer<TNumber>, NumberGroupTimeSeriesSummer<TNumber>>
+/// <summary>
+/// Grouped numeric summer for any <see cref="INumber{T}"/> type.
+/// </summary>
+public class NumberGroupTimeSeriesSummer<TNumber>(TimeSpan sampleInterval, int samplesCount, Strategy strategy, bool deleteOverdueSamples) : BaseGroupNumberTimeSeriesSummer<TNumber, NumberTimeSeriesSummer<TNumber>, NumberGroupTimeSeriesSummer<TNumber>>(sampleInterval, deleteOverdueSamples)
     where TNumber : struct, INumber<TNumber>
 {
-    private readonly TimeSpan _sampleInterval;
-    private readonly int _samplesCount;
-    private readonly Strategy _strategy;
+    private readonly int _samplesCount = samplesCount;
+    private readonly Strategy _strategy = strategy;
 
-    public NumberGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy, bool deleteOverdueSamples)
-        : base(sampleInterval, deleteOverdueSamples)
-    {
-        _sampleInterval = sampleInterval;
-        _samplesCount = samplesCount;
-        _strategy = strategy;
-    }
+    /// <summary>
+    /// Gets the maximum number of buckets to retain per key. Use 0 for unbounded.
+    /// </summary>
+    public int MaxSamplesCount => _samplesCount;
+
+    /// <summary>
+    /// Gets the aggregation strategy used for each key.
+    /// </summary>
+    public Strategy Strategy => _strategy;
 
     public NumberGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, bool deleteOverdueSamples)
         : this(sampleInterval, samplesCount, Strategy.Sum, deleteOverdueSamples)
@@ -28,6 +32,7 @@ public class NumberGroupTimeSeriesSummer<TNumber> : BaseGroupNumberTimeSeriesSum
     {
     }
 
+    /// <inheritdoc />
     public override TNumber Average()
     {
         if (TimeSeries.IsEmpty)
@@ -47,6 +52,7 @@ public class NumberGroupTimeSeriesSummer<TNumber> : BaseGroupNumberTimeSeriesSum
         return sampleCount == 0 ? TNumber.Zero : total / TNumber.CreateChecked(sampleCount);
     }
 
+    /// <inheritdoc />
     public override TNumber Min()
     {
         var hasValue = false;
@@ -73,6 +79,7 @@ public class NumberGroupTimeSeriesSummer<TNumber> : BaseGroupNumberTimeSeriesSum
         return hasValue ? min : TNumber.Zero;
     }
 
+    /// <inheritdoc />
     public override TNumber Max()
     {
         var hasValue = false;
@@ -99,6 +106,7 @@ public class NumberGroupTimeSeriesSummer<TNumber> : BaseGroupNumberTimeSeriesSum
         return hasValue ? max : TNumber.Zero;
     }
 
+    /// <inheritdoc />
     public override TNumber Sum()
     {
         var total = TNumber.Zero;
@@ -112,6 +120,6 @@ public class NumberGroupTimeSeriesSummer<TNumber> : BaseGroupNumberTimeSeriesSum
 
     protected override NumberTimeSeriesSummer<TNumber> CreateSummer()
     {
-        return new NumberTimeSeriesSummer<TNumber>(_sampleInterval, _samplesCount, _strategy);
+        return new NumberTimeSeriesSummer<TNumber>(SampleInterval, _samplesCount, _strategy);
     }
 }

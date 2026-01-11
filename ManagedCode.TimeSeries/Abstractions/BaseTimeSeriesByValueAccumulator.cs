@@ -2,6 +2,9 @@ using System.Collections.Concurrent;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
+/// <summary>
+/// Base class for accumulators which store unique values per bucket.
+/// </summary>
 public abstract class BaseTimeSeriesByValueAccumulator<T, TSelf> : BaseTimeSeries<T, ConcurrentDictionary<T, byte>, TSelf>
     where T : notnull
     where TSelf : BaseTimeSeries<T, ConcurrentDictionary<T, byte>, TSelf>
@@ -59,6 +62,7 @@ public abstract class BaseTimeSeriesByValueAccumulator<T, TSelf> : BaseTimeSerie
     //     return this;
     // }
 
+    /// <inheritdoc />
     public override void Merge(TSelf accumulator)
     {
         if (accumulator is null)

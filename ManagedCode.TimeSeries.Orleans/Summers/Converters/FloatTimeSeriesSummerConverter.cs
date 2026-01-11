@@ -1,13 +1,14 @@
-using System;
-using System.Collections.Generic;
 using ManagedCode.TimeSeries.Summers;
-using Orleans;
 
 namespace ManagedCode.TimeSeries.Orleans;
 
+/// <summary>
+/// Orleans converter for <see cref="FloatTimeSeriesSummer"/>.
+/// </summary>
 [RegisterConverter]
-public sealed class FloatTimeSeriesSummerConverter<T> : IConverter<FloatTimeSeriesSummer, TimeSeriesSummerSurrogate<float>>
+public sealed class FloatTimeSeriesSummerConverter : IConverter<FloatTimeSeriesSummer, TimeSeriesSummerSurrogate<float>>
 {
+    /// <inheritdoc />
     public FloatTimeSeriesSummer ConvertFromSurrogate(in TimeSeriesSummerSurrogate<float> surrogate)
     {
         var series = new FloatTimeSeriesSummer(surrogate.SampleInterval, surrogate.MaxSamplesCount, surrogate.Strategy);
@@ -15,13 +16,15 @@ public sealed class FloatTimeSeriesSummerConverter<T> : IConverter<FloatTimeSeri
 
         foreach (var pair in surrogate.Samples)
         {
-            converted[pair.Key] = pair.Value;
+            var normalizedKey = new DateTimeOffset(pair.Key.UtcDateTime, TimeSpan.Zero);
+            converted[normalizedKey] = pair.Value;
         }
 
         series.InitInternal(converted, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
         return series;
     }
 
+    /// <inheritdoc />
     public TimeSeriesSummerSurrogate<float> ConvertToSurrogate(in FloatTimeSeriesSummer value)
     {
         var samples = value.Samples;

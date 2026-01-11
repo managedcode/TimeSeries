@@ -1,20 +1,19 @@
-using System;
-using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSeries<TNumber, TNumber, TSelf>
+/// <summary>
+/// Base class for numeric summers which aggregate numeric values per bucket.
+/// </summary>
+public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf>(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : BaseTimeSeries<TNumber, TNumber, TSelf>(sampleInterval, maxSamplesCount)
     where TNumber : struct, INumber<TNumber> where TSelf : BaseTimeSeries<TNumber, TNumber, TSelf>
 {
-    protected BaseNumberTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount)
-    {
-        Strategy = strategy;
-    }
-    
-    public Strategy Strategy { get; protected set; }
+    /// <summary>
+    /// Gets the aggregation strategy for this summer.
+    /// </summary>
+    public Strategy Strategy { get; protected set; } = strategy;
 
     protected override void AddData(DateTimeOffset date, TNumber data)
     {
@@ -23,6 +22,7 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
             current => Update(current, data));
     }
 
+    /// <inheritdoc />
     public override void Merge(TSelf accumulator)
     {
         if (accumulator is null)
@@ -44,6 +44,7 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
         }
     }
 
+    /// <inheritdoc />
     public override void Resample(TimeSpan sampleInterval, int samplesCount)
     {
         if (sampleInterval <= SampleInterval)
@@ -65,7 +66,7 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
 
         foreach (var (key, value) in snapshot)
         {
-            var roundedKey = key.Round(SampleInterval);
+            var roundedKey = key.RoundUtc(SampleInterval);
             AddOrUpdateSample(roundedKey,
                 () => value,
                 current => Update(current, value));
@@ -88,29 +89,38 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
             Strategy.Min => TNumber.Min(left, right),
             Strategy.Max => TNumber.Max(left, right),
             Strategy.Replace => right,
-            _ => throw new ArgumentOutOfRangeException()
+            _ => throw new InvalidOperationException("Unsupported strategy.")
         };
     }
 
+    /// <summary>
+    /// Increments the current bucket by one.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual void Increment()
     {
         AddNewData(TNumber.One);
     }
 
+    /// <summary>
+    /// Decrements the current bucket by one.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual void Decrement()
     {
         AddNewData(-TNumber.One);
     }
 
+    /// <summary>
+    /// Returns the average across all buckets.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber Average()
     {
         var total = TNumber.Zero;
         var count = 0;
 
-        foreach (var value in Samples.Values)
+        foreach (var value in Storage.Values)
         {
             total += value;
             count++;
@@ -119,13 +129,16 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
         return count == 0 ? TNumber.Zero : total / TNumber.CreateChecked(count);
     }
 
+    /// <summary>
+    /// Returns the minimum value across all buckets.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber? Min()
     {
         var hasValue = false;
         var min = TNumber.Zero;
 
-        foreach (var value in Samples.Values)
+        foreach (var value in Storage.Values)
         {
             if (!hasValue)
             {
@@ -141,13 +154,16 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
         return hasValue ? min : null;
     }
 
+    /// <summary>
+    /// Returns the maximum value across all buckets.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber? Max()
     {
         var hasValue = false;
         var max = TNumber.Zero;
 
-        foreach (var value in Samples.Values)
+        foreach (var value in Storage.Values)
         {
             if (!hasValue)
             {
@@ -163,11 +179,14 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf> : BaseTimeSerie
         return hasValue ? max : null;
     }
 
+    /// <summary>
+    /// Returns the sum across all buckets.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TNumber Sum()
     {
         var total = TNumber.Zero;
-        foreach (var sample in Samples.Values)
+        foreach (var sample in Storage.Values)
         {
             total += sample;
         }

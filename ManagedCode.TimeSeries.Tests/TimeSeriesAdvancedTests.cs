@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using ManagedCode.TimeSeries.Abstractions;
 using ManagedCode.TimeSeries.Accumulators;
-using ManagedCode.TimeSeries.Summers;
 using ManagedCode.TimeSeries.Orleans;
+using ManagedCode.TimeSeries.Summers;
 using ManagedCode.TimeSeries.Tests.Assertions;
 using Shouldly;
 using Xunit;
@@ -46,7 +42,7 @@ public class TimeSeriesAdvancedTests
         accumulator.TrimStart();
         accumulator.TrimEnd();
         accumulator.Samples.Count.ShouldBeLessThan(countBefore);
-        accumulator.Samples.Values.All(queue => queue.Count > 0).ShouldBeTrue();
+        accumulator.Samples.Values.All(queue => !queue.IsEmpty).ShouldBeTrue();
     }
 
     [Fact]
@@ -187,7 +183,7 @@ public class TimeSeriesAdvancedTests
             accumulator.AddNewData(DateTimeOffset.UnixEpoch.AddSeconds(i), i);
         }
 
-        var converter = new IntTimeSeriesAccumulatorConverter<int>();
+        var converter = new IntTimeSeriesAccumulatorConverter();
         var surrogate = converter.ConvertToSurrogate(accumulator);
         var restored = converter.ConvertFromSurrogate(surrogate);
 
@@ -205,12 +201,133 @@ public class TimeSeriesAdvancedTests
             summer.AddNewData(DateTimeOffset.UnixEpoch.AddMilliseconds(i), i);
         }
 
-        var converter = new IntTimeSeriesSummerConverter<int>();
+        var converter = new IntTimeSeriesSummerConverter();
         var surrogate = converter.ConvertToSurrogate(summer);
         var restored = converter.ConvertFromSurrogate(surrogate);
 
         restored.Sum().ShouldBe(summer.Sum());
         restored.Samples.Count.ShouldBe(summer.Samples.Count);
         restored.Samples.Keys.ShouldSequenceEqual(summer.Samples.Keys.ToArray());
+    }
+
+    [Fact]
+    public void OrleansGroupAccumulatorConverter_RoundTrips()
+    {
+        var group = new IntGroupTimeSeriesAccumulator(TimeSpan.FromSeconds(1), maxSamplesCount: 8, deleteOverdueSamples: false);
+        group.AddNewData("a", DateTimeOffset.UnixEpoch, 1);
+        group.AddNewData("b", DateTimeOffset.UnixEpoch.AddSeconds(1), 2);
+
+        var converter = new IntGroupTimeSeriesAccumulatorConverter();
+        var surrogate = converter.ConvertToSurrogate(group);
+        var restored = converter.ConvertFromSurrogate(surrogate);
+
+        restored.Snapshot().Count.ShouldBe(2);
+        restored.Snapshot().Single(pair => pair.Key == "a").Value.DataCount.ShouldBe(1ul);
+        restored.Snapshot().Single(pair => pair.Key == "b").Value.DataCount.ShouldBe(1ul);
+    }
+
+    [Fact]
+    public void OrleansGroupSummerConverter_RoundTrips()
+    {
+        var group = new IntGroupNumberTimeSeriesSummer(TimeSpan.FromSeconds(1), samplesCount: 8, strategy: Strategy.Sum, deleteOverdueSamples: false);
+        group.AddNewData("a", 1);
+        group.AddNewData("b", 2);
+
+        var converter = new IntGroupNumberTimeSeriesSummerConverter();
+        var surrogate = converter.ConvertToSurrogate(group);
+        var restored = converter.ConvertFromSurrogate(surrogate);
+
+        restored.Sum().ShouldBe(3);
+        restored.TimeSeries.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void OrleansGenericSummerConverter_RoundTrips()
+    {
+        var summer = new NumberTimeSeriesSummer<decimal>(TimeSpan.FromSeconds(1), maxSamplesCount: 4, strategy: Strategy.Sum);
+        summer.AddNewData(1.5m);
+        summer.AddNewData(2.5m);
+
+        var converter = new NumberTimeSeriesSummerConverter<decimal>();
+        var surrogate = converter.ConvertToSurrogate(summer);
+        var restored = converter.ConvertFromSurrogate(surrogate);
+
+        restored.Sum().ShouldBe(4.0m);
+        restored.Samples.Count.ShouldBe(summer.Samples.Count);
+    }
+
+    [Fact]
+    public void OrleansGenericGroupSummerConverter_RoundTrips()
+    {
+        var group = new NumberGroupTimeSeriesSummer<decimal>(TimeSpan.FromSeconds(1), samplesCount: 4, strategy: Strategy.Sum, deleteOverdueSamples: false);
+        group.AddNewData("a", 1.0m);
+        group.AddNewData("b", 2.0m);
+
+        var converter = new NumberGroupTimeSeriesSummerConverter<decimal>();
+        var surrogate = converter.ConvertToSurrogate(group);
+        var restored = converter.ConvertFromSurrogate(surrogate);
+
+        restored.Sum().ShouldBe(3.0m);
+        restored.TimeSeries.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void OrleansFloatGroupAccumulatorConverter_RoundTrips()
+    {
+        var group = new FloatGroupTimeSeriesAccumulator(TimeSpan.FromSeconds(1), maxSamplesCount: 4, deleteOverdueSamples: false);
+        group.AddNewData("alpha", DateTimeOffset.UnixEpoch, 1.25f);
+        group.AddNewData("beta", DateTimeOffset.UnixEpoch.AddSeconds(1), 2.5f);
+
+        var converter = new FloatGroupTimeSeriesAccumulatorConverter();
+        var surrogate = converter.ConvertToSurrogate(group);
+        var restored = converter.ConvertFromSurrogate(surrogate);
+
+        restored.Snapshot().Count.ShouldBe(2);
+        restored.Snapshot().Single(pair => pair.Key == "alpha").Value.DataCount.ShouldBe(1ul);
+    }
+
+    [Fact]
+    public void OrleansDoubleGroupAccumulatorConverter_RoundTrips()
+    {
+        var group = new DoubleGroupTimeSeriesAccumulator(TimeSpan.FromSeconds(1), maxSamplesCount: 4, deleteOverdueSamples: false);
+        group.AddNewData("alpha", DateTimeOffset.UnixEpoch, 1.25);
+        group.AddNewData("beta", DateTimeOffset.UnixEpoch.AddSeconds(1), 2.5);
+
+        var converter = new DoubleGroupTimeSeriesAccumulatorConverter();
+        var surrogate = converter.ConvertToSurrogate(group);
+        var restored = converter.ConvertFromSurrogate(surrogate);
+
+        restored.Snapshot().Count.ShouldBe(2);
+        restored.Snapshot().Single(pair => pair.Key == "beta").Value.DataCount.ShouldBe(1ul);
+    }
+
+    [Fact]
+    public void OrleansFloatGroupSummerConverter_RoundTrips()
+    {
+        var group = new FloatGroupNumberTimeSeriesSummer(TimeSpan.FromSeconds(1), samplesCount: 4, strategy: Strategy.Sum, deleteOverdueSamples: false);
+        group.AddNewData("alpha", 1.5f);
+        group.AddNewData("beta", 2.5f);
+
+        var converter = new FloatGroupNumberTimeSeriesSummerConverter();
+        var surrogate = converter.ConvertToSurrogate(group);
+        var restored = converter.ConvertFromSurrogate(surrogate);
+
+        restored.Sum().ShouldBe(4.0f);
+        restored.TimeSeries.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void OrleansDoubleGroupSummerConverter_RoundTrips()
+    {
+        var group = new DoubleGroupTimeSeriesSummer(TimeSpan.FromSeconds(1), samplesCount: 4, strategy: Strategy.Sum, deleteOverdueSamples: false);
+        group.AddNewData("alpha", 1.5);
+        group.AddNewData("beta", 2.5);
+
+        var converter = new DoubleGroupTimeSeriesSummerConverter();
+        var surrogate = converter.ConvertToSurrogate(group);
+        var restored = converter.ConvertFromSurrogate(surrogate);
+
+        restored.Sum().ShouldBe(4.0);
+        restored.TimeSeries.Count.ShouldBe(2);
     }
 }

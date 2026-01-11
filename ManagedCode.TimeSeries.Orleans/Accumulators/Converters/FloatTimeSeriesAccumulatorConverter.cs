@@ -1,14 +1,15 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using ManagedCode.TimeSeries.Accumulators;
-using Orleans;
 
 namespace ManagedCode.TimeSeries.Orleans;
 
+/// <summary>
+/// Orleans converter for <see cref="FloatTimeSeriesAccumulator"/>.
+/// </summary>
 [RegisterConverter]
-public sealed class FloatTimeSeriesAccumulatorConverter<T> : IConverter<FloatTimeSeriesAccumulator, TimeSeriesAccumulatorsSurrogate<float>>
+public sealed class FloatTimeSeriesAccumulatorConverter : IConverter<FloatTimeSeriesAccumulator, TimeSeriesAccumulatorsSurrogate<float>>
 {
+    /// <inheritdoc />
     public FloatTimeSeriesAccumulator ConvertFromSurrogate(in TimeSeriesAccumulatorsSurrogate<float> surrogate)
     {
         var series = new FloatTimeSeriesAccumulator(surrogate.SampleInterval, surrogate.MaxSamplesCount);
@@ -16,13 +17,15 @@ public sealed class FloatTimeSeriesAccumulatorConverter<T> : IConverter<FloatTim
 
         foreach (var pair in surrogate.Samples)
         {
-            converted[pair.Key] = new ConcurrentQueue<float>(pair.Value);
+            var normalizedKey = new DateTimeOffset(pair.Key.UtcDateTime, TimeSpan.Zero);
+            converted[normalizedKey] = new ConcurrentQueue<float>(pair.Value);
         }
 
         series.InitInternal(converted, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
         return series;
     }
 
+    /// <inheritdoc />
     public TimeSeriesAccumulatorsSurrogate<float> ConvertToSurrogate(in FloatTimeSeriesAccumulator value)
     {
         var samples = value.Samples;

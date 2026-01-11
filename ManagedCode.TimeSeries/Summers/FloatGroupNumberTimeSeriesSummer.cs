@@ -2,10 +2,9 @@ using ManagedCode.TimeSeries.Abstractions;
 
 namespace ManagedCode.TimeSeries.Summers;
 
-public class FloatGroupNumberTimeSeriesSummer : NumberGroupTimeSeriesSummer<float>
+/// <summary>
+/// Grouped numeric summer for floating-point values.
+/// </summary>
+public class FloatGroupNumberTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy, bool deleteOverdueSamples) : NumberGroupTimeSeriesSummer<float>(sampleInterval, samplesCount, strategy, deleteOverdueSamples)
 {
-    public FloatGroupNumberTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy, bool deleteOverdueSamples)
-        : base(sampleInterval, samplesCount, strategy, deleteOverdueSamples)
-    {
-    }
 }

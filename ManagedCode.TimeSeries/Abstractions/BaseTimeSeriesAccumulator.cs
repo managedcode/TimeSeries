@@ -1,10 +1,11 @@
-using System;
 using System.Collections.Concurrent;
-using System.Linq;
 using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
+/// <summary>
+/// Base class for accumulators which store raw events in per-bucket queues.
+/// </summary>
 public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, ConcurrentQueue<T>, TSelf> where TSelf : BaseTimeSeries<T, ConcurrentQueue<T>, TSelf>
 {
     protected BaseTimeSeriesAccumulator(TimeSpan sampleInterval, int maxSamplesCount) : base(sampleInterval, maxSamplesCount)
@@ -23,12 +24,18 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Co
         queue.Enqueue(data);
     }
 
+    /// <summary>
+    /// Removes empty buckets from both ends of the series.
+    /// </summary>
     public void Trim()
     {
         TrimStart();
         TrimEnd();
     }
 
+    /// <summary>
+    /// Removes empty buckets from the beginning of the series.
+    /// </summary>
     public void TrimStart()
     {
         while (TryGetBoundarySample(static (candidate, current) => candidate < current, out var key, out var queue))
@@ -48,6 +55,9 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Co
         }
     }
 
+    /// <summary>
+    /// Removes empty buckets from the end of the series.
+    /// </summary>
     public void TrimEnd()
     {
         while (TryGetBoundarySample(static (candidate, current) => candidate > current, out var key, out var queue))
@@ -67,6 +77,7 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Co
         }
     }
 
+    /// <inheritdoc />
     public override void Merge(TSelf accumulator)
     {
         if (accumulator is null)
@@ -95,6 +106,7 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Co
         }
     }
 
+    /// <inheritdoc />
     public override void Resample(TimeSpan sampleInterval, int samplesCount)
     {
         if (sampleInterval <= SampleInterval)
@@ -116,7 +128,7 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Co
 
         foreach (var (key, value) in snapshot)
         {
-            var roundedKey = key.Round(SampleInterval);
+            var roundedKey = key.RoundUtc(SampleInterval);
             var queue = GetOrCreateSample(roundedKey, static () => new ConcurrentQueue<T>());
 
             foreach (var item in value)
@@ -140,7 +152,7 @@ public abstract class BaseTimeSeriesAccumulator<T, TSelf> : BaseTimeSeries<T, Co
         queue = default!;
         var found = false;
 
-        foreach (var sample in Samples)
+        foreach (var sample in Storage)
         {
             if (!found || comparer(sample.Key, key))
             {

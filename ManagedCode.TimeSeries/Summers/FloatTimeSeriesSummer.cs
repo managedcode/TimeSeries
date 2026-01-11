@@ -2,6 +2,9 @@ using ManagedCode.TimeSeries.Abstractions;
 
 namespace ManagedCode.TimeSeries.Summers;
 
+/// <summary>
+/// Numeric summer for floating-point values.
+/// </summary>
 public class FloatTimeSeriesSummer : BaseNumberTimeSeriesSummer<float, FloatTimeSeriesSummer>
 {
     public FloatTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount, strategy)

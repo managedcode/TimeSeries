@@ -8,16 +8,17 @@ namespace ManagedCode.TimeSeries.Tests;
 
 public class AccumulatorsTests
 {
-    
+
     [Fact]
-    public async Task IntTimeSeriesAccumulator()
+    public void IntTimeSeriesAccumulator()
     {
-        int count = 1050;
-        var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1));
-        for (int i = 0; i < count; i++)
+        var count = 1050;
+        var interval = TimeSpan.FromMilliseconds(10);
+        var series = new IntTimeSeriesAccumulator(interval);
+        var start = DateTimeOffset.UtcNow;
+        for (var i = 0; i < count; i++)
         {
-            await Task.Delay(new Random().Next(1, 5));
-            series.AddNewData(i);
+            series.AddNewData(start.AddTicks(interval.Ticks * i), i);
         }
 
         series.DataCount.ShouldBe(Convert.ToUInt64(count));
@@ -32,38 +33,29 @@ public class AccumulatorsTests
             }
         }
     }
-    
-    [Fact(Skip = "Need fix")]
-    public async Task IntTimeSeriesAccumulatorMaxSamplesCount()
+
+    [Fact]
+    public void IntTimeSeriesAccumulatorMaxSamplesCount()
     {
-        int samplesCount = 105;
-        int count = 1050;
-        var series = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(0.1), samplesCount);
-        for (int i = 0; i < count; i++)
+        var samplesCount = 105;
+        var count = 1050;
+        var interval = TimeSpan.FromMilliseconds(10);
+        var series = new IntTimeSeriesAccumulator(interval, samplesCount);
+        var start = DateTimeOffset.UtcNow;
+        for (var i = 0; i < count; i++)
         {
-            await Task.Delay(new Random().Next(1, 5));
-            series.AddNewData(i);
+            series.AddNewData(start.AddTicks(interval.Ticks * i), i);
         }
 
         series.DataCount.ShouldBe(Convert.ToUInt64(count)); //because it's total; number of samples
         series.Samples.Count.ShouldBe(samplesCount); //because it's total; number of samples
 
-        var step = count - samplesCount - 1;
-        foreach (var queue in series.Samples)
-        {
-            foreach (var item in queue.Value)
-            {
-                item.ShouldBe(step);
-                step++;
-            }
-        }
+        var ordered = series.Samples.OrderBy(pair => pair.Key).ToArray();
+        ordered.Length.ShouldBe(samplesCount);
+        ordered.First().Value.Single().ShouldBe(count - samplesCount);
+        ordered.Last().Value.Single().ShouldBe(count - 1);
     }
 
-
-
-    
-    
-    
     [Fact]
     public void GroupAccumulatorSupportsMultipleKeys()
     {
@@ -152,20 +144,16 @@ public class AccumulatorsTests
         queue.Count.ShouldBe(1);
         queue.ShouldContain(7);
     }
-    
-    
-    
-    
-    
-    
+
     [Fact]
-    public async Task Accumulator()
+    public void Accumulator()
     {
-        var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1));
+        var interval = TimeSpan.FromMilliseconds(10);
+        var series = new IntTimeSeriesAccumulator(interval);
+        var start = DateTimeOffset.UtcNow;
         for (var i = 0; i < 1000; i++)
         {
-            await Task.Delay(new Random().Next(1, 5));
-            series.AddNewData(i);
+            series.AddNewData(start.AddTicks(interval.Ticks * i), i);
         }
 
         series.DataCount.ShouldBe(1000ul);
@@ -210,37 +198,48 @@ public class AccumulatorsTests
     // }
 
     [Fact]
-    public async Task AccumulatorLimit()
+    public void AccumulatorLimit()
     {
-        var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10);
+        var interval = TimeSpan.FromMilliseconds(10);
+        var series = new IntTimeSeriesAccumulator(interval, 10);
+        var start = DateTimeOffset.UtcNow;
 
         for (var i = 0; i < 1000; i++)
         {
-            await Task.Delay(new Random().Next(1, 5));
-            series.AddNewData(i);
+            series.AddNewData(start.AddTicks(interval.Ticks * i), i);
         }
 
         series.Samples.Count.ShouldBe(10);
     }
 
     [Fact]
-    public async Task IsFull()
+    public void IsFull()
     {
-        var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10);
+        var interval = TimeSpan.FromMilliseconds(10);
+        var series = new IntTimeSeriesAccumulator(interval, 10);
+        var start = DateTimeOffset.UtcNow;
 
-        for (var i = 0; i < 1000; i++)
+        for (var i = 0; i < 10; i++)
         {
-            await Task.Delay(new Random().Next(1, 5));
-
-            if (series.IsFull)
-            {
-                break;
-            }
-
-            series.AddNewData(i);
+            series.AddNewData(start.AddTicks(interval.Ticks * i), i);
         }
 
         series.IsFull.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsFull_UnboundedSeriesRemainsFalse()
+    {
+        var interval = TimeSpan.FromMilliseconds(10);
+        var series = new IntTimeSeriesAccumulator(interval);
+        var start = DateTimeOffset.UtcNow;
+
+        for (var i = 0; i < 50; i++)
+        {
+            series.AddNewData(start.AddTicks(interval.Ticks * i), i);
+        }
+
+        series.IsFull.ShouldBeFalse();
     }
 
     [Fact]
@@ -251,78 +250,76 @@ public class AccumulatorsTests
     }
 
     [Fact]
-    public async Task AccumulatorMerge()
+    public void AccumulatorMerge()
     {
-        Func<Task<IntTimeSeriesAccumulator>> FillFunc = async () =>
+        var interval = TimeSpan.FromMilliseconds(10);
+        Func<IntTimeSeriesAccumulator> fillFunc = () =>
         {
-            var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10);
+            var series = new IntTimeSeriesAccumulator(interval, 10);
+            var start = DateTimeOffset.UtcNow;
             for (var i = 0; i < 1000; i++)
             {
-                await Task.Delay(new Random().Next(1, 5));
-                series.AddNewData(i);
+                series.AddNewData(start.AddTicks(interval.Ticks * i), i);
             }
 
             return series;
         };
 
-        var seriesA = FillFunc();
-        var seriesB = FillFunc();
+        var seriesA = fillFunc();
+        var seriesB = fillFunc();
 
-        await Task.WhenAll(seriesA, seriesB);
+        seriesA.Samples.Count.ShouldBe(10);
+        seriesB.Samples.Count.ShouldBe(10);
 
-        seriesA.Result.Samples.Count.ShouldBe(10);
-        seriesB.Result.Samples.Count.ShouldBe(10);
+        seriesA.Merge(seriesB);
 
-        seriesA.Result.Merge(seriesB.Result);
-
-        seriesA.Result.Samples.Count.ShouldBe(10);
+        seriesA.Samples.Count.ShouldBe(10);
 
         var seriesList = new List<IntTimeSeriesAccumulator>();
-        seriesList.Add(await FillFunc());
-        seriesList.Add(await FillFunc());
-        seriesList.Add(await FillFunc());
-        seriesList.Add(new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(0.1), 10));
+        seriesList.Add(fillFunc());
+        seriesList.Add(fillFunc());
+        seriesList.Add(fillFunc());
+        seriesList.Add(new IntTimeSeriesAccumulator(interval, 10));
 
-        IntTimeSeriesAccumulator onlineExpertsPerHourTimeSeries = null;
-        foreach (var item in seriesList.ToArray())
+        IntTimeSeriesAccumulator? merged = null;
+        foreach (var item in seriesList)
         {
-            if (onlineExpertsPerHourTimeSeries == null)
+            if (merged is null)
             {
-                onlineExpertsPerHourTimeSeries = item;
+                merged = item;
             }
             else
             {
-                onlineExpertsPerHourTimeSeries.Merge(item);
+                merged.Merge(item);
             }
         }
 
-        onlineExpertsPerHourTimeSeries.Samples.Count.ShouldBe(10);
+        merged.ShouldNotBeNull();
+        merged!.Samples.Count.ShouldBe(10);
     }
 
-  
     [Fact]
-    public async Task Resample()
+    public void Resample()
     {
-        var seriesFeature = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(2), 100);
+        var interval = TimeSpan.FromMilliseconds(2);
+        var seriesFeature = new IntTimeSeriesAccumulator(interval, 100);
+        var start = DateTimeOffset.UtcNow;
 
         for (var i = 0; i < 100; i++)
         {
-            seriesFeature.AddNewData(i);
-
-            await Task.Delay(1);
+            seriesFeature.AddNewData(start.AddMilliseconds(i * interval.TotalMilliseconds), i);
         }
 
         seriesFeature.Resample(TimeSpan.FromMilliseconds(4), 100);
-        var sad = seriesFeature;
+        seriesFeature.SampleInterval.ShouldBe(TimeSpan.FromMilliseconds(4));
+        seriesFeature.Samples.ShouldNotBeEmpty();
     }
-
-   
 
     [Fact]
     public void MarkupAllSamples()
     {
         var seriesFeature = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10), 100);
-        seriesFeature.MarkupAllSamples(MarkupDirection.Feature);
+        seriesFeature.MarkupAllSamples(MarkupDirection.Future);
         seriesFeature.AddNewData(1);
         (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
         (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);

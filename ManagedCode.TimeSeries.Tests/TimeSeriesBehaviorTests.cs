@@ -1,14 +1,11 @@
-using System;
 using System.Collections;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using ManagedCode.TimeSeries.Accumulators;
-using ManagedCode.TimeSeries.Summers;
 using ManagedCode.TimeSeries.Abstractions;
+using ManagedCode.TimeSeries.Accumulators;
 using ManagedCode.TimeSeries.Extensions;
 using ManagedCode.TimeSeries.Orleans;
+using ManagedCode.TimeSeries.Summers;
 using ManagedCode.TimeSeries.Tests.Assertions;
 using Shouldly;
 using Xunit;
@@ -36,13 +33,8 @@ public class TimeSeriesBehaviorTests
         public void ForceSetMaxSamples(int value) => MaxSamplesCount = value;
     }
 
-    private sealed class StringSetAccumulator : BaseTimeSeriesByValueAccumulator<string, StringSetAccumulator>
+    private sealed class StringSetAccumulator(TimeSpan sampleInterval, int samplesCount = 0) : BaseTimeSeriesByValueAccumulator<string, StringSetAccumulator>(sampleInterval, samplesCount)
     {
-        public StringSetAccumulator(TimeSpan sampleInterval, int samplesCount = 0)
-            : base(sampleInterval, samplesCount)
-        {
-        }
-
         public override void Resample(TimeSpan sampleInterval, int samplesCount)
         {
             if (sampleInterval <= SampleInterval)
@@ -121,9 +113,9 @@ public class TimeSeriesBehaviorTests
         var accumulator = new TestAccumulator(TimeSpan.FromMilliseconds(1), maxSamplesCount: 1);
         accumulator.AddNewData(DateTimeOffset.UtcNow, 42);
         accumulator.AddNewData(DateTimeOffset.UtcNow.AddMilliseconds(1), 43);
-        accumulator.ForceSetMaxSamples(-1);
-        var overflow = accumulator.IsOverflow;
-        overflow.ShouldBeFalse();
+        accumulator.ForceSetMaxSamples(0);
+        accumulator.IsOverflow.ShouldBeFalse();
+        Should.Throw<ArgumentOutOfRangeException>(() => accumulator.ForceSetMaxSamples(-1));
     }
 
     [Fact]
@@ -178,8 +170,8 @@ public class TimeSeriesBehaviorTests
         right.AddNewData(DateTimeOffset.UnixEpoch.AddMilliseconds(5), 2);
 
         var merged = left + right;
-        merged.Samples.Count.ShouldBe(right.Samples.Count);
-        merged.DataCount.ShouldBe(right.DataCount);
+        merged.Samples.Count.ShouldBe(2);
+        merged.DataCount.ShouldBe(2ul);
     }
 
     [Fact]
@@ -192,8 +184,8 @@ public class TimeSeriesBehaviorTests
         right.AddNewData(DateTimeOffset.UnixEpoch.AddMilliseconds(5), 2);
 
         var merged = checked(left + right);
-        merged.Samples.Count.ShouldBe(right.Samples.Count);
-        merged.DataCount.ShouldBe(right.DataCount);
+        merged.Samples.Count.ShouldBe(2);
+        merged.DataCount.ShouldBe(2ul);
     }
 
     [Fact]
@@ -294,7 +286,7 @@ public class TimeSeriesBehaviorTests
     [Fact]
     public void OrleansAccumulatorConverter_RoundTripsEmptySeries()
     {
-        var converter = new IntTimeSeriesAccumulatorConverter<int>();
+        var converter = new IntTimeSeriesAccumulatorConverter();
         var source = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(1), maxSamplesCount: 4);
 
         var surrogate = converter.ConvertToSurrogate(source);
@@ -310,7 +302,7 @@ public class TimeSeriesBehaviorTests
     {
         var floatAcc = new FloatTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10), maxSamplesCount: 8);
         floatAcc.AddNewData(DateTimeOffset.UnixEpoch, 1.23f);
-        var floatConverter = new FloatTimeSeriesAccumulatorConverter<float>();
+        var floatConverter = new FloatTimeSeriesAccumulatorConverter();
         var floatSurrogate = floatConverter.ConvertToSurrogate(floatAcc);
         var floatRestored = floatConverter.ConvertFromSurrogate(floatSurrogate);
         var floatOriginal = floatAcc.Samples.Sum(pair => pair.Value.Sum());
@@ -319,7 +311,7 @@ public class TimeSeriesBehaviorTests
 
         var doubleAcc = new DoubleTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10), maxSamplesCount: 6);
         doubleAcc.AddNewData(DateTimeOffset.UnixEpoch, 4.2);
-        var doubleAccConverter = new DoubleTimeSeriesAccumulatorConverter<double>();
+        var doubleAccConverter = new DoubleTimeSeriesAccumulatorConverter();
         var doubleAccSurrogate = doubleAccConverter.ConvertToSurrogate(doubleAcc);
         var doubleAccRestored = doubleAccConverter.ConvertFromSurrogate(doubleAccSurrogate);
         doubleAccRestored.DataCount.ShouldBe(doubleAcc.DataCount);
@@ -327,7 +319,7 @@ public class TimeSeriesBehaviorTests
 
         var doubleSummer = new DoubleTimeSeriesSummer(TimeSpan.FromMilliseconds(10), maxSamplesCount: 8, Strategy.Sum);
         doubleSummer.AddNewData(DateTimeOffset.UnixEpoch, 3.14);
-        var doubleConverter = new DoubleTimeSeriesSummerConverter<double>();
+        var doubleConverter = new DoubleTimeSeriesSummerConverter();
         var doubleSurrogate = doubleConverter.ConvertToSurrogate(doubleSummer);
         var doubleRestored = doubleConverter.ConvertFromSurrogate(doubleSurrogate);
         doubleRestored.Sum().ShouldBe(doubleSummer.Sum());
@@ -335,7 +327,7 @@ public class TimeSeriesBehaviorTests
         var floatSummer = new FloatTimeSeriesSummer(TimeSpan.FromMilliseconds(10), maxSamplesCount: 6, Strategy.Max);
         floatSummer.AddNewData(DateTimeOffset.UnixEpoch, 1.0f);
         floatSummer.AddNewData(DateTimeOffset.UnixEpoch.AddMilliseconds(10), 2.0f);
-        var floatSummerConverter = new FloatTimeSeriesSummerConverter<float>();
+        var floatSummerConverter = new FloatTimeSeriesSummerConverter();
         var floatSummerSurrogate = floatSummerConverter.ConvertToSurrogate(floatSummer);
         var floatSummerRestored = floatSummerConverter.ConvertFromSurrogate(floatSummerSurrogate);
         floatSummerRestored.Max().ShouldBe(floatSummer.Max());
@@ -344,7 +336,7 @@ public class TimeSeriesBehaviorTests
     [Fact]
     public void OrleansSummerConverter_RoundTripsEmptySeries()
     {
-        var converter = new IntTimeSeriesSummerConverter<int>();
+        var converter = new IntTimeSeriesSummerConverter();
         var summer = new IntTimeSeriesSummer(TimeSpan.FromMilliseconds(5), maxSamplesCount: 4, strategy: Strategy.Sum);
 
         var surrogate = converter.ConvertToSurrogate(summer);
@@ -407,6 +399,16 @@ public class TimeSeriesBehaviorTests
     }
 
     [Fact]
+    public void Accumulator_BucketsAliasMatchesSamples()
+    {
+        var accumulator = new TestAccumulator(TimeSpan.FromMilliseconds(5), maxSamplesCount: 4);
+        accumulator.AddNewData(DateTimeOffset.UnixEpoch, 1);
+
+        ReferenceEquals(accumulator.Samples, accumulator.Buckets).ShouldBeTrue();
+        accumulator.Buckets.ShouldHaveCount(accumulator.Samples.Count);
+    }
+
+    [Fact]
     public void Accumulator_CanBeConstructedWithExplicitRange()
     {
         var start = DateTimeOffset.UnixEpoch.AddMinutes(1);
@@ -417,6 +419,20 @@ public class TimeSeriesBehaviorTests
         accumulator.Start.ShouldBe(start.Round(TimeSpan.FromSeconds(1)));
         accumulator.End.ShouldBe(end.Round(TimeSpan.FromSeconds(1)));
         accumulator.LastDate.ShouldBe(last);
+    }
+
+    [Fact]
+    public void Accumulator_NormalizesOffsetsToUtc()
+    {
+        var accumulator = new TestAccumulator(TimeSpan.FromSeconds(1), maxSamplesCount: 4);
+        var offsetTime = new DateTimeOffset(2024, 1, 1, 12, 0, 0, TimeSpan.FromHours(2));
+
+        accumulator.AddNewData(offsetTime, 1);
+
+        accumulator.Start.Offset.ShouldBe(TimeSpan.Zero);
+        accumulator.End.Offset.ShouldBe(TimeSpan.Zero);
+        accumulator.LastDate.Offset.ShouldBe(TimeSpan.Zero);
+        accumulator.Samples.Keys.Single().Offset.ShouldBe(TimeSpan.Zero);
     }
 
     [Fact]
@@ -453,12 +469,11 @@ public class TimeSeriesBehaviorTests
         }
 
         var countBefore = series.DataCount;
-        var lastBefore = series.LastDate;
 
         series.Resample(TimeSpan.FromMilliseconds(50), samplesCount: 4);
 
         series.DataCount.ShouldBe(countBefore);
-        series.LastDate.ShouldBe(lastBefore.Round(TimeSpan.FromMilliseconds(50)));
+        series.LastDate.ShouldBe(series.Samples.Keys.Max());
         series.Samples.Count.ShouldBeLessThanOrEqualTo(4);
         series.Samples.Values.Sum(queue => queue.Count).ShouldBe((int)countBefore);
     }
@@ -535,20 +550,15 @@ public class TimeSeriesBehaviorTests
         sumSummer.DataCount.ShouldBeGreaterThan(0ul);
 
         var countBefore = sumSummer.DataCount;
-        var lastBefore = sumSummer.LastDate;
+        var lastSampleBefore = sumSummer.Samples.Keys.Max();
         sumSummer.Resample(TimeSpan.FromMilliseconds(10), samplesCount: 4);
         sumSummer.DataCount.ShouldBe(countBefore);
-        sumSummer.LastDate.ShouldBe(lastBefore.Round(TimeSpan.FromMilliseconds(10)));
+        sumSummer.LastDate.ShouldBe(lastSampleBefore.Round(TimeSpan.FromMilliseconds(10)));
     }
 
-    private readonly struct DummySummerItem : ISummerItem<DummySummerItem>
+    private readonly struct DummySummerItem(int value) : ISummerItem<DummySummerItem>
     {
-        public DummySummerItem(int value)
-        {
-            Value = value;
-        }
-
-        public int Value { get; }
+        public int Value { get; } = value;
 
         public static DummySummerItem Zero => new(0);
         public static DummySummerItem One => new(1);
@@ -560,11 +570,7 @@ public class TimeSeriesBehaviorTests
         public static DummySummerItem operator +(DummySummerItem left, DummySummerItem right) => new(left.Value + right.Value);
     }
 
-    private sealed class DummySummer : BaseTimeSeriesSummer<DummySummerItem, DummySummer>
+    private sealed class DummySummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : BaseTimeSeriesSummer<DummySummerItem, DummySummer>(sampleInterval, maxSamplesCount, strategy)
     {
-        public DummySummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy)
-            : base(sampleInterval, maxSamplesCount, strategy)
-        {
-        }
     }
 }

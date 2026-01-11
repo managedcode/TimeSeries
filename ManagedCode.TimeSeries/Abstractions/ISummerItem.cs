@@ -2,6 +2,9 @@ using System.Numerics;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
+/// <summary>
+/// Defines the minimal numeric operations required by summer items.
+/// </summary>
 public interface ISummerItem<TSelf> :
     IUnaryNegationOperators<TSelf, TSelf>,
     IAdditionOperators<TSelf, TSelf, TSelf>

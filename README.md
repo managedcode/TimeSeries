@@ -7,7 +7,7 @@
 [![Release](https://github.com/managedcode/TimeSeries/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/managedcode/TimeSeries/actions/workflows/release.yml)
 [![CodeQL](https://github.com/managedcode/TimeSeries/actions/workflows/codeql-analysis.yml/badge.svg?branch=main)](https://github.com/managedcode/TimeSeries/actions/workflows/codeql-analysis.yml)
 
-> Lock-free, allocation-conscious time-series primitives written in modern C# for building fast counters, aggregations, and rolling analytics.
+> Lock-free, allocation-conscious, thread-safe time-series primitives for building fast counters, rolling analytics, and metric pipelines in .NET 10 / C# 14.
 
 | Package | NuGet |
 | --- | --- |
@@ -15,85 +15,94 @@
 
 ---
 
-## Why TimeSeries?
+## What is this library?
 
-- **Data pipelines demand concurrency.** We built the core on lock-free `ConcurrentDictionary`/`ConcurrentQueue` structures and custom atomic helpers, so write-heavy workloads scale across cores without blocking.
-- **Numeric algorithms shouldn’t duplicate code.** Everything is generic over `INumber<T>`, so `int`, `decimal`, or your own numeric type can use the same summer/accumulator implementations.
-- **Hundreds of signals, one API.** Grouped accumulators and summers make it trivial to manage keyed windows (think “per customer”, “per endpoint”, “per shard”) with automatic clean-up.
-- **Production-ready plumbing.** Orleans converters, Release automation, Coveralls reporting, and central package management are all wired up out of the box.
+ManagedCode.TimeSeries is a high-performance .NET time series metrics library. It provides optimized, time-bucketed
+collections to aggregate events into **time series**:
 
-## Table of Contents
+- **Accumulators** store raw events per time bucket (queue per bucket).
+- **Summers** store aggregated values per time bucket (sum/min/max/replace).
+- **Groups** manage many series by key (per endpoint, per customer, per shard, etc.).
 
-1. [Feature Highlights](#feature-highlights)  
-2. [Quickstart](#quickstart)  
-3. [Architecture Notes](#architecture-notes)  
-4. [Development Workflow](#development-workflow)  
-5. [Release Automation](#release-automation)  
-6. [Extensibility](#extensibility)  
-7. [Contributing](#contributing)  
-8. [License](#license)
+It's designed for high-throughput analytics: clicks, tokens, CPU usage, money, events, and any numeric telemetry.
 
-## Feature Highlights
+### Why use it?
 
-- **Lock-free core** – writes hit `ConcurrentDictionary` + `ConcurrentQueue`, range metadata updated via custom atomics.
-- **Generic summers** – `NumberTimeSeriesSummer<T>` & friends operate on any `INumber<T>` implementation.
-- **Mass fan-in ready** – grouped accumulators/summers handle hundreds of keys without `lock`.
-- **Orleans-native** – converters bridge to Orleans surrogates so grains can persist accumulators out of the box.
-- **Delivery pipeline** – GitHub Actions release workflow bundles builds, tests, packs, tagging, and publishing.
-- **Central package versions** – single source of NuGet truth via `Directory.Packages.props`.
+- Lock-free ingestion for high write rates.
+- Thread-safe reads/writes for multi-threaded pipelines.
+- UTC-normalized timestamps for deterministic ordering.
+- Grouped series for multi-tenant metrics.
+- Orleans-friendly converters and System.Text.Json helpers.
 
-## Quickstart
+### Common use cases
 
-### Install
+- Web analytics (page views, clicks, conversion funnels).
+- Infrastructure metrics (CPU, memory, latency, tokens).
+- Billing counters (money, usage, events per window).
+
+## Concepts (quick mental model)
+
+- **SampleInterval**: bucket size (e.g., 1s, 10s, 1m).
+- **Samples/Buckets**: ordered view of buckets keyed by **UTC timestamps** (`Buckets` is an alias of `Samples`).
+- **MaxSamplesCount**: maximum bucket count per series; `0` means unbounded (this is not the event count).
+- **DataCount**: total events processed (not the number of buckets).
+- **UTC normalized**: you can pass any `DateTimeOffset`, but values are normalized to UTC internally; offsets are not stored.
+- **Thread-safe**: concurrent reads/writes are supported across all public types.
+
+## Install
 
 ```bash
 dotnet add package ManagedCode.TimeSeries
 ```
 
-### Create a rolling accumulator
+## Quickstart
+
+### 1) Make a rolling accumulator (store raw events)
 
 ```csharp
 using ManagedCode.TimeSeries.Accumulators;
 
-var requests = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(5), maxSamplesCount: 60);
+var requests = new IntTimeSeriesAccumulator(
+    sampleInterval: TimeSpan.FromSeconds(5),
+    maxSamplesCount: 60); // 60 buckets -> 5 minutes at 5s interval
 
-Parallel.For(0, 10_000, i =>
-{
-    requests.AddNewData(i);
-});
+// Use current time (UTC internally)
+requests.Record(1);
+requests.Record(1);
 
-Console.WriteLine($"Samples stored: {requests.Samples.Count}");
-Console.WriteLine($"Events processed: {requests.DataCount}");
+Console.WriteLine($"Buckets: {requests.Samples.Count}");
+Console.WriteLine($"Events: {requests.DataCount}");
 ```
 
-### Summaries with any numeric type
+### 2) Make a summer (store aggregates per bucket)
 
 ```csharp
 using ManagedCode.TimeSeries.Summers;
+using ManagedCode.TimeSeries.Extensions;
 
 var latency = new NumberTimeSeriesSummer<decimal>(TimeSpan.FromMilliseconds(500));
 
-latency.AddNewData(DateTimeOffset.UtcNow, 12.4m);
-latency.AddNewData(DateTimeOffset.UtcNow.AddMilliseconds(250), 9.6m);
+latency.Record(12.4m);
+latency.Record(9.6m);
 
-Console.WriteLine($"AVG: {latency.Average():F2} ms");
-Console.WriteLine($"P50/P100: {latency.Min()} / {latency.Max()}");
+Console.WriteLine($"Sum: {latency.Sum()}");
+Console.WriteLine($"Avg: {latency.Average():F2}");
+Console.WriteLine($"Min/Max: {latency.Min()} / {latency.Max()}");
 ```
 
-### Track many signals at once
+### 3) Track many keys at once (grouped series)
 
 ```csharp
 using ManagedCode.TimeSeries.Accumulators;
+using ManagedCode.TimeSeries.Extensions;
 
 var perEndpoint = new IntGroupTimeSeriesAccumulator(
     sampleInterval: TimeSpan.FromSeconds(1),
     maxSamplesCount: 300,
     deleteOverdueSamples: true);
 
-Parallel.ForEach(requests, req =>
-{
-    perEndpoint.AddNewData(req.Path, req.Timestamp, 1);
-});
+perEndpoint.AddNewData("/home", 1);
+perEndpoint.AddNewData("/checkout", 1);
 
 foreach (var (endpoint, accumulator) in perEndpoint.Snapshot())
 {
@@ -101,64 +110,84 @@ foreach (var (endpoint, accumulator) in perEndpoint.Snapshot())
 }
 ```
 
-### Orleans-friendly serialization
+### 4) Serialize/deserialize with System.Text.Json
 
 ```csharp
-// In your Orleans silo:
-builder.Services.AddSerializer(builder =>
-{
-    builder.AddConverter<IntTimeSeriesAccumulatorConverter<int>>();
-    builder.AddConverter<IntTimeSeriesSummerConverter<int>>();
-    // …add others as needed
-});
+using ManagedCode.TimeSeries.Accumulators;
+using ManagedCode.TimeSeries.Serialization;
+
+var series = new IntTimeSeriesAccumulator(TimeSpan.FromSeconds(1), maxSamplesCount: 10);
+series.AddNewData(1);
+series.AddNewData(2);
+
+var json = TimeSeriesJsonSerializer.SerializeAccumulator<int, IntTimeSeriesAccumulator>(series);
+var restored = TimeSeriesJsonSerializer.DeserializeAccumulator<int, IntTimeSeriesAccumulator>(json);
+
+Console.WriteLine(restored.DataCount); // same as original
 ```
 
-## Architecture Notes
+### 5) Orleans serialization (v9)
 
-- **Lock-free core:** `BaseTimeSeries` stores samples in a `ConcurrentDictionary` and updates range metadata through `AtomicDateTimeOffset`. Per-key data is a `ConcurrentQueue<T>` (accumulators) or direct `INumber<T>` (summers).
-- **Deterministic reads:** consumers get an ordered read-only projection of the concurrent map, so existing iteration/test semantics stay intact while writers remain lock-free.
-- **Group managers:** `BaseGroupTimeSeriesAccumulator` and `BaseGroupNumberTimeSeriesSummer` use `ConcurrentDictionary<string, ...>` plus lightweight background timers for overdue clean-up—no `lock` statements anywhere on the hot path.
-- **Orleans bridge:** converters project between the concurrent structures and Orleans’ plain dictionaries/queues, keeping serialized payloads simple while the live types stay lock-free.
+Converters in `ManagedCode.TimeSeries.Orleans` are marked with `[RegisterConverter]` and are auto-registered when the
+assembly is loaded. Reference the package from your silo and client projects so the converters are available.
+Converters are provided for int/float/double accumulators, summers, and grouped series, plus generic numeric summers.
+
+## Time handling (DateTimeOffset vs DateTime)
+
+- Public APIs accept `DateTimeOffset` so callers can pass any offset they have.
+- Internally, timestamps are **normalized to UTC** (offset zero) for speed and determinism.
+- If you need to preserve offsets, store them separately alongside your metric data.
+- If you do not need custom timestamps, use `Record(value)` or `AddNewData(value)` and let the library use `DateTime.UtcNow`.
+
+## Accumulators vs Summers
+
+| Type | Stored per bucket | Best for |
+| --- | --- | --- |
+| Accumulator | `ConcurrentQueue<T>` | raw event lists, replay, exact values |
+| Summer | `T` (aggregated) | fast stats, memory-efficient counters |
+
+## Performance tips
+
+- Keep `MaxSamplesCount` reasonable to limit memory.
+- Use `Record(value)` (or `AddNewData(value)`) unless you must pass custom timestamps.
+- Use summers for high-volume metrics (they avoid storing every event).
+- Avoid locks in code that touches these structures.
+
+## Design notes
+
+- Accumulators use `ConcurrentQueue<T>` to remain lock-free and thread-safe under concurrent writes.
+- Even in single-threaded runtimes, timers and background cleanup can introduce concurrency.
+- If you need single-thread-only storage, consider using summers or ask for a dedicated single-thread accumulator.
+
+## Architecture
+
+- See `docs/Architecture/Overview.md` for detailed workflows, data model, and module boundaries.
+
+## Development Workflow
+
+```bash
+dotnet restore ManagedCode.TimeSeries.slnx
+dotnet build ManagedCode.TimeSeries.slnx --configuration Release
+dotnet format ManagedCode.TimeSeries.slnx
+dotnet build ManagedCode.TimeSeries.slnx --configuration Release
+dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj --configuration Release
+```
 
 ## Extensibility
 
 | Scenario | Hook |
 | --- | --- |
-| Custom numeric type | Implement `INumber<T>` and plug into `NumberTimeSeriesSummer<T>` |
-| Alternative aggregation strategy | Extend `Strategy` enum & override `Update` in a derived summer |
-| Domain-specific accumulator | Derive from `TimeSeriesAccumulator<T, TSelf>` (future rename of `BaseTimeSeriesAccumulator`) and expose tailored helpers |
-| Serialization | Add dedicated Orleans converters / System.Text.Json converters using the pattern in `ManagedCode.TimeSeries.Orleans` |
-
-> **Heads up:** the `Base*` prefixes hang around for historical reasons. We plan to rename the concrete-ready generics to `TimeSeriesAccumulator<T,...>` / `TimeSeriesSummer<T,...>` in a future release with deprecation shims.
-
-## Development Workflow
-
-- Solution: `ManagedCode.TimeSeries.slnx`
-  ```bash
-  dotnet restore ManagedCode.TimeSeries.slnx
-  dotnet build ManagedCode.TimeSeries.slnx --configuration Release
-  dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj --configuration Release
-  ```
-- Packages: update versions only in `Directory.Packages.props`.
-- Coverage: `dotnet test ... -p:CollectCoverage=true -p:CoverletOutputFormat=lcov`.
-- Benchmarks: `dotnet run --project ManagedCode.TimeSeries.Benchmark --configuration Release`.
-
-## Release Automation
-
-- Workflow: `.github/workflows/release.yml`
-  - Trigger: push to `main` or manual `workflow_dispatch`.
-  - Steps: restore → build → test → pack → `dotnet nuget push` (skip duplicates) → create/tag release.
-  - Configure secrets:
-    - `NUGET_API_KEY`: NuGet publish token.
-    - Default `${{ secrets.GITHUB_TOKEN }}` is used for tagging and releases.
+| Custom numeric type | Implement `INumber<T>` and use `NumberTimeSeriesSummer<T>` |
+| Different aggregation | Use `Strategy` or implement a custom summer |
+| Serialization | System.Text.Json helpers in `ManagedCode.TimeSeries.Serialization` |
 
 ## Contributing
 
 1. Restore/build/test using the commands above.
 2. Keep new APIs covered with tests (see existing samples in `ManagedCode.TimeSeries.Tests`).
-3. Align with the lock-free architecture—avoid introducing `lock` on hot paths.
-4. Document new features in this README.
+3. Keep hot paths lock-free; only introduce locking when unavoidable and document the trade-off.
+4. Update this README if you change behavior or public APIs.
 
 ## License
 
-MIT © ManagedCode SAS.
+MIT (c) ManagedCode SAS.

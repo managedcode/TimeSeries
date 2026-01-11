@@ -1,84 +1,116 @@
-using System;
 using System.Collections;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Threading;
 using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
+/// <summary>
+/// Base class for time-series storage with UTC-normalized bucket keys and common operations.
+/// </summary>
 public abstract class BaseTimeSeries<T, TSample, TSelf> :
     ITimeSeries<T, TSelf> where TSelf : BaseTimeSeries<T, TSample, TSelf>
 {
     private const int DefaultSampleCount = 100;
 
     private readonly ConcurrentDictionary<DateTimeOffset, TSample> _samples = new();
+    private readonly OrderedSampleView _orderedSamples;
     private AtomicDateTimeOffset _start;
     private AtomicDateTimeOffset _end;
     private AtomicDateTimeOffset _lastDate;
-    private long _dataCount;
+    private ulong _dataCount;
     private int _maxSamplesCount;
 
     protected BaseTimeSeries(TimeSpan sampleInterval, int maxSamplesCount)
     {
+        EnsureValidConfiguration(sampleInterval, maxSamplesCount);
         SampleInterval = sampleInterval;
         MaxSamplesCount = maxSamplesCount;
+        _orderedSamples = new OrderedSampleView(_samples);
 
-        var now = DateTimeOffset.UtcNow.Round(SampleInterval);
+        var now = UtcNowRounded();
         _start.Write(now);
         _end.Write(now);
-        _lastDate.Write(now);
+        _lastDate.Write(BaseTimeSeries<T, TSample, TSelf>.UtcNow());
     }
 
     protected BaseTimeSeries(TimeSpan sampleInterval, int maxSamplesCount, DateTimeOffset start, DateTimeOffset end, DateTimeOffset lastDate)
     {
+        EnsureValidConfiguration(sampleInterval, maxSamplesCount);
         SampleInterval = sampleInterval;
         MaxSamplesCount = maxSamplesCount;
+        _orderedSamples = new OrderedSampleView(_samples);
 
-        _start.Write(start.Round(SampleInterval));
-        _end.Write(end.Round(SampleInterval));
-        _lastDate.Write(lastDate);
-
-        foreach (var key in _samples.Keys)
-        {
-            _samples.TryRemove(key, out _);
-        }
+        _start.Write(start.RoundUtc(SampleInterval));
+        _end.Write(end.RoundUtc(SampleInterval));
+        _lastDate.Write(BaseTimeSeries<T, TSample, TSelf>.NormalizeUtc(lastDate));
     }
 
     protected ConcurrentDictionary<DateTimeOffset, TSample> Storage => _samples;
 
-    public IReadOnlyDictionary<DateTimeOffset, TSample> Samples => new OrderedSampleView(_samples);
+    /// <summary>
+    /// Gets an ordered view of buckets keyed by UTC timestamps.
+    /// </summary>
+    public IReadOnlyDictionary<DateTimeOffset, TSample> Samples => _orderedSamples;
 
+    /// <summary>
+    /// Gets an ordered view of buckets (alias of <see cref="Samples"/>).
+    /// </summary>
+    public IReadOnlyDictionary<DateTimeOffset, TSample> Buckets => _orderedSamples;
+
+    /// <summary>
+    /// Gets the earliest bucket timestamp (UTC).
+    /// </summary>
     public DateTimeOffset Start
     {
         get => _start.Read();
         internal set => _start.Write(value);
     }
 
+    /// <summary>
+    /// Gets the latest bucket timestamp (UTC).
+    /// </summary>
     public DateTimeOffset End
     {
         get => _end.Read();
         protected set => _end.Write(value);
     }
 
+    /// <summary>
+    /// Gets the most recent event timestamp (UTC).
+    /// </summary>
     public DateTimeOffset LastDate
     {
         get => _lastDate.Read();
         protected set => _lastDate.Write(value);
     }
 
+    /// <summary>
+    /// Gets the bucket width used for rounding timestamps.
+    /// </summary>
     public TimeSpan SampleInterval { get; protected set; }
 
+    /// <summary>
+    /// Gets the maximum number of buckets to retain. Use 0 for unbounded.
+    /// </summary>
     public int MaxSamplesCount
     {
         get => Volatile.Read(ref _maxSamplesCount);
-        protected set => Volatile.Write(ref _maxSamplesCount, value);
+        protected set
+        {
+            if (value < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "Max samples count must be non-negative.");
+            }
+
+            Volatile.Write(ref _maxSamplesCount, value);
+        }
     }
 
-    public ulong DataCount => unchecked((ulong)Volatile.Read(ref _dataCount));
+    /// <summary>
+    /// Gets the total number of events added (not the bucket count).
+    /// </summary>
+    public ulong DataCount => Volatile.Read(ref _dataCount);
 
     internal void InitInternal(Dictionary<DateTimeOffset, TSample> samples,
         DateTimeOffset start, DateTimeOffset end,
@@ -91,18 +123,39 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
             _samples.TryAdd(kvp.Key, kvp.Value);
         }
 
-        _start.Write(start);
-        _end.Write(end);
-        _lastDate.Write(lastDate);
-        Volatile.Write(ref _dataCount, unchecked((long)dataCount));
+        _start.Write(BaseTimeSeries<T, TSample, TSelf>.NormalizeUtc(start));
+        _end.Write(BaseTimeSeries<T, TSample, TSelf>.NormalizeUtc(end));
+        _lastDate.Write(BaseTimeSeries<T, TSample, TSelf>.NormalizeUtc(lastDate));
+        Volatile.Write(ref _dataCount, dataCount);
     }
 
-    public bool IsFull => _samples.Count >= MaxSamplesCount;
+    /// <summary>
+    /// Gets whether the bucket count has reached <see cref="MaxSamplesCount"/>.
+    /// </summary>
+    public bool IsFull => MaxSamplesCount > 0 && _samples.Count >= MaxSamplesCount;
+
+    /// <summary>
+    /// Gets whether there are no buckets.
+    /// </summary>
     public bool IsEmpty => _samples.IsEmpty;
+
+    /// <summary>
+    /// Gets whether the bucket count exceeds <see cref="MaxSamplesCount"/>.
+    /// </summary>
     public bool IsOverflow => MaxSamplesCount > 0 && _samples.Count > MaxSamplesCount;
 
+    /// <summary>
+    /// Re-buckets the series into a larger interval.
+    /// </summary>
+    /// <param name="sampleInterval">The new bucket width. Must be larger than the current interval.</param>
+    /// <param name="samplesCount">The new maximum bucket count. Use 0 for unbounded.</param>
     public abstract void Resample(TimeSpan sampleInterval, int samplesCount);
 
+    /// <summary>
+    /// Creates an empty series instance with the provided configuration.
+    /// </summary>
+    /// <param name="sampleInterval">Bucket width. Must be positive.</param>
+    /// <param name="maxSamplesCount">Maximum bucket count. Use 0 for unbounded.</param>
     public static TSelf Empty(TimeSpan? sampleInterval = null, int maxSamplesCount = 0)
     {
         if (sampleInterval is null || sampleInterval.Value <= TimeSpan.Zero)
@@ -110,47 +163,70 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
             throw new ArgumentOutOfRangeException(nameof(sampleInterval), "Sample interval must be a positive value.");
         }
 
+        if (maxSamplesCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxSamplesCount), "Max samples count must be non-negative.");
+        }
+
         return (TSelf)Activator.CreateInstance(typeof(TSelf), sampleInterval.Value, maxSamplesCount)!;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    /// <summary>
+    /// Merges another series into the current instance.
+    /// </summary>
+    /// <param name="accumulator">The series to merge.</param>
     public abstract void Merge(TSelf accumulator);
 
+    /// <summary>
+    /// Adds a value using the current UTC timestamp.
+    /// </summary>
+    /// <param name="data">The value to add.</param>
     public void AddNewData(T data)
     {
-        var now = DateTimeOffset.UtcNow;
-        var rounded = now.Round(SampleInterval);
+        var now = DateTime.UtcNow;
+        var rounded = RoundUtc(now);
 
         Interlocked.Increment(ref _dataCount);
         AddData(rounded, data);
 
         UpdateEnd(rounded);
-        _lastDate.Write(now);
+        _lastDate.Write(new DateTimeOffset(now, TimeSpan.Zero));
     }
 
+    /// <summary>
+    /// Adds a value at the specified timestamp (normalized to UTC).
+    /// </summary>
+    /// <param name="dateTimeOffset">The timestamp to use.</param>
+    /// <param name="data">The value to add.</param>
     public void AddNewData(DateTimeOffset dateTimeOffset, T data)
     {
-        var rounded = dateTimeOffset.Round(SampleInterval);
+        var normalized = BaseTimeSeries<T, TSample, TSelf>.NormalizeUtc(dateTimeOffset);
+        var rounded = RoundUtc(normalized);
 
         Interlocked.Increment(ref _dataCount);
         AddData(rounded, data);
 
         UpdateEnd(rounded);
-        _lastDate.Write(rounded);
+        _lastDate.Write(normalized);
     }
 
+    /// <summary>
+    /// Pre-creates buckets relative to the current <see cref="Start"/> value.
+    /// </summary>
+    /// <param name="direction">The direction to create buckets.</param>
     public void MarkupAllSamples(MarkupDirection direction = MarkupDirection.Past)
     {
         var samples = MaxSamplesCount > 0 ? MaxSamplesCount : DefaultSampleCount;
 
-        if (direction is MarkupDirection.Past or MarkupDirection.Feature)
+        if (direction is MarkupDirection.Past or MarkupDirection.Future)
         {
             var cursor = Start;
             for (var i = 0; i < samples; i++)
             {
-                cursor = cursor.Round(SampleInterval);
+                cursor = cursor.RoundUtc(SampleInterval);
                 _ = GetOrCreateSample(cursor, static () => Activator.CreateInstance<TSample>()!);
-                cursor = direction is MarkupDirection.Feature ? cursor.Add(SampleInterval) : cursor.Subtract(SampleInterval);
+                cursor = direction is MarkupDirection.Future ? cursor.Add(SampleInterval) : cursor.Subtract(SampleInterval);
             }
         }
         else
@@ -160,8 +236,8 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
             for (var i = 0; i < samples / 2 + 1; i++)
             {
-                forward = forward.Round(SampleInterval);
-                backward = backward.Round(SampleInterval);
+                forward = forward.RoundUtc(SampleInterval);
+                backward = backward.RoundUtc(SampleInterval);
 
                 _ = GetOrCreateSample(forward, static () => Activator.CreateInstance<TSample>()!);
                 _ = GetOrCreateSample(backward, static () => Activator.CreateInstance<TSample>()!);
@@ -172,6 +248,9 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         }
     }
 
+    /// <summary>
+    /// Deletes buckets that fall outside the configured window.
+    /// </summary>
     public void DeleteOverdueSamples()
     {
         if (MaxSamplesCount <= 0 || _samples.IsEmpty)
@@ -179,7 +258,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
             return;
         }
 
-        var threshold = DateTimeOffset.UtcNow.Round(SampleInterval);
+        var threshold = UtcNowRounded();
         for (var i = 0; i < MaxSamplesCount; i++)
         {
             threshold = threshold.Subtract(SampleInterval);
@@ -196,6 +275,10 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         RecalculateRange();
     }
 
+    /// <summary>
+    /// Creates a new series and merges the supplied series into it.
+    /// </summary>
+    /// <param name="accumulators">The series to merge.</param>
     public TSelf Rebase(IEnumerable<TSelf> accumulators)
     {
         var empty = (TSelf)Activator.CreateInstance(typeof(TSelf), SampleInterval, MaxSamplesCount)!;
@@ -208,6 +291,10 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         return empty;
     }
 
+    /// <summary>
+    /// Merges the supplied series into the current instance.
+    /// </summary>
+    /// <param name="accumulators">The series to merge.</param>
     public void Merge(IEnumerable<TSelf> accumulators)
     {
         foreach (var accumulator in accumulators)
@@ -216,6 +303,10 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         }
     }
 
+    /// <summary>
+    /// Creates a new series and merges the supplied series into it.
+    /// </summary>
+    /// <param name="accumulator">The series to merge.</param>
     public TSelf Rebase(TSelf accumulator)
     {
         var empty = (TSelf)Activator.CreateInstance(typeof(TSelf), SampleInterval, MaxSamplesCount)!;
@@ -224,19 +315,33 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         return empty;
     }
 
+    /// <summary>
+    /// Creates a new series which merges both operands.
+    /// </summary>
     public static TSelf operator +(BaseTimeSeries<T, TSample, TSelf> left, TSelf right)
     {
-        return left.Rebase(right);
+        var merged = left.Rebase(right);
+        merged.Merge((TSelf)left);
+        return merged;
     }
 
+    /// <summary>
+    /// Creates a new series which merges both operands with checked arithmetic.
+    /// </summary>
     public static TSelf operator checked +(BaseTimeSeries<T, TSample, TSelf> left, TSelf right)
     {
-        return left.Rebase(right);
+        var merged = left.Rebase(right);
+        merged.Merge((TSelf)left);
+        return merged;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected abstract void AddData(DateTimeOffset now, T data);
 
+    /// <summary>
+    /// Adds to the data counter without changing bucket contents.
+    /// </summary>
+    /// <param name="value">The amount to add.</param>
     protected void AddToDataCount(ulong value)
     {
         if (value == 0)
@@ -244,12 +349,16 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
             return;
         }
 
-        Interlocked.Add(ref _dataCount, unchecked((long)value));
+        Interlocked.Add(ref _dataCount, value);
     }
 
+    /// <summary>
+    /// Sets the data counter without changing bucket contents.
+    /// </summary>
+    /// <param name="value">The new counter value.</param>
     protected void SetDataCount(ulong value)
     {
-        Volatile.Write(ref _dataCount, unchecked((long)value));
+        Volatile.Write(ref _dataCount, value);
     }
 
     protected TSample GetOrCreateSample(DateTimeOffset key, Func<TSample> factory)
@@ -299,7 +408,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
     protected void ResetSamplesStorage()
     {
         _samples.Clear();
-        var now = DateTimeOffset.UtcNow.Round(SampleInterval);
+        var now = UtcNowRounded();
         _start.Write(now);
         _end.Write(now);
     }
@@ -329,44 +438,33 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
             return;
         }
 
-        while (_samples.Count > MaxSamplesCount)
+        var overflow = _samples.Count - MaxSamplesCount;
+        if (overflow <= 0)
         {
-            if (!TryRemoveOldest())
-            {
-                break;
-            }
+            return;
         }
-    }
 
-    private bool TryRemoveOldest()
-    {
-        DateTimeOffset oldest = DateTimeOffset.MaxValue;
-        foreach (var key in _samples.Keys)
+        var keysToRemove = _samples.Keys.OrderBy(static key => key).Take(overflow).ToArray();
+        var removedAny = false;
+
+        foreach (var key in keysToRemove)
         {
-            if (key < oldest)
+            if (_samples.TryRemove(key, out _))
             {
-                oldest = key;
+                removedAny = true;
             }
         }
 
-        if (oldest == DateTimeOffset.MaxValue)
-        {
-            return false;
-        }
-
-        var removed = _samples.TryRemove(oldest, out _);
-        if (removed)
+        if (removedAny)
         {
             RecalculateRange();
         }
-
-        return removed;
     }
 
     protected void RecalculateRange()
     {
-        DateTimeOffset min = DateTimeOffset.MaxValue;
-        DateTimeOffset max = DateTimeOffset.MinValue;
+        var min = DateTimeOffset.MaxValue;
+        var max = DateTimeOffset.MinValue;
 
         foreach (var key in _samples.Keys)
         {
@@ -383,7 +481,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
         if (min == DateTimeOffset.MaxValue)
         {
-            var now = DateTimeOffset.UtcNow.Round(SampleInterval);
+            var now = UtcNowRounded();
             _start.Write(now);
             _end.Write(now);
             return;
@@ -393,14 +491,9 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
         _end.Write(max);
     }
 
-    private sealed class OrderedSampleView : IReadOnlyDictionary<DateTimeOffset, TSample>
+    private sealed class OrderedSampleView(ConcurrentDictionary<DateTimeOffset, TSample> source) : IReadOnlyDictionary<DateTimeOffset, TSample>
     {
-        private readonly ConcurrentDictionary<DateTimeOffset, TSample> _source;
-
-        public OrderedSampleView(ConcurrentDictionary<DateTimeOffset, TSample> source)
-        {
-            _source = source;
-        }
+        private readonly ConcurrentDictionary<DateTimeOffset, TSample> _source = source;
 
         public IEnumerable<DateTimeOffset> Keys => _source.Keys.OrderBy(static key => key);
 
@@ -412,12 +505,40 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
         public bool ContainsKey(DateTimeOffset key) => _source.ContainsKey(key);
 
-        public bool TryGetValue(DateTimeOffset key, out TSample value) => _source.TryGetValue(key, out value);
+        public bool TryGetValue(DateTimeOffset key, out TSample value)
+        {
+            var found = _source.TryGetValue(key, out var existing);
+            value = existing!;
+            return found;
+        }
 
         public IEnumerator<KeyValuePair<DateTimeOffset, TSample>> GetEnumerator() => _source.OrderBy(static pair => pair.Key).GetEnumerator();
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
+
+    private static void EnsureValidConfiguration(TimeSpan sampleInterval, int maxSamplesCount)
+    {
+        if (sampleInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleInterval), "Sample interval must be positive.");
+        }
+
+        if (maxSamplesCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxSamplesCount), "Max samples count must be non-negative.");
+        }
+    }
+
+    private static DateTimeOffset NormalizeUtc(DateTimeOffset value) => new(value.UtcDateTime, TimeSpan.Zero);
+
+    private DateTimeOffset RoundUtc(DateTimeOffset value) => value.RoundUtc(SampleInterval);
+
+    private DateTimeOffset RoundUtc(DateTime value) => new(value.Round(SampleInterval), TimeSpan.Zero);
+
+    private static DateTimeOffset UtcNow() => new(DateTime.UtcNow, TimeSpan.Zero);
+
+    private DateTimeOffset UtcNowRounded() => RoundUtc(DateTime.UtcNow);
 }
 
 internal struct AtomicDateTimeOffset

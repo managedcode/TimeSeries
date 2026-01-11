@@ -3,14 +3,12 @@ using ManagedCode.TimeSeries.Abstractions;
 
 namespace ManagedCode.TimeSeries.Summers;
 
-public sealed class NumberTimeSeriesSummer<TNumber> : BaseNumberTimeSeriesSummer<TNumber, NumberTimeSeriesSummer<TNumber>>
+/// <summary>
+/// Numeric summer for any <see cref="INumber{T}"/> type.
+/// </summary>
+public sealed class NumberTimeSeriesSummer<TNumber>(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : BaseNumberTimeSeriesSummer<TNumber, NumberTimeSeriesSummer<TNumber>>(sampleInterval, maxSamplesCount, strategy)
     where TNumber : struct, INumber<TNumber>
 {
-    public NumberTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy)
-        : base(sampleInterval, maxSamplesCount, strategy)
-    {
-    }
-
     public NumberTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount)
         : this(sampleInterval, maxSamplesCount, Strategy.Sum)
     {

@@ -1,18 +1,15 @@
-using System.Linq;
 using System.Runtime.CompilerServices;
 using ManagedCode.TimeSeries.Extensions;
 
 namespace ManagedCode.TimeSeries.Abstractions;
 
-public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<TSummerItem, TSummerItem, TSelf>
+/// <summary>
+/// Base class for summers which aggregate values per bucket.
+/// </summary>
+public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf>(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : BaseTimeSeries<TSummerItem, TSummerItem, TSelf>(sampleInterval, maxSamplesCount)
     where TSummerItem : ISummerItem<TSummerItem> where TSelf : BaseTimeSeries<TSummerItem, TSummerItem, TSelf>
 {
-    private readonly Strategy _strategy;
-
-    protected BaseTimeSeriesSummer(TimeSpan sampleInterval, int maxSamplesCount, Strategy strategy) : base(sampleInterval, maxSamplesCount)
-    {
-        _strategy = strategy;
-    }
+    private readonly Strategy _strategy = strategy;
 
     protected override void AddData(DateTimeOffset date, TSummerItem data)
     {
@@ -21,6 +18,7 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
             current => Update(current, data));
     }
 
+    /// <inheritdoc />
     public override void Merge(TSelf accumulator)
     {
         if (accumulator is null)
@@ -42,6 +40,7 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
         }
     }
 
+    /// <inheritdoc />
     public override void Resample(TimeSpan sampleInterval, int samplesCount)
     {
         if (sampleInterval <= SampleInterval)
@@ -62,7 +61,7 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
 
         foreach (var (key, value) in snapshot)
         {
-            var roundedKey = key.Round(SampleInterval);
+            var roundedKey = key.RoundUtc(SampleInterval);
             AddOrUpdateSample(roundedKey,
                 () => value,
                 current => Update(current, value));
@@ -85,29 +84,38 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
             Strategy.Min => TSummerItem.Min(left, right),
             Strategy.Max => TSummerItem.Max(left, right),
             Strategy.Replace => right,
-            _ => throw new ArgumentOutOfRangeException()
+            _ => throw new InvalidOperationException("Unsupported strategy.")
         };
     }
 
+    /// <summary>
+    /// Increments the current bucket by one.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual void Increment()
     {
         AddNewData(TSummerItem.One);
     }
 
+    /// <summary>
+    /// Decrements the current bucket by one.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual void Decrement()
     {
         AddNewData(-TSummerItem.One);
     }
 
+    /// <summary>
+    /// Returns the minimum value across all buckets.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TSummerItem? Min()
     {
         var hasValue = false;
         var min = TSummerItem.Zero;
 
-        foreach (var value in Samples.Values)
+        foreach (var value in Storage.Values)
         {
             if (!hasValue)
             {
@@ -123,13 +131,16 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
         return hasValue ? min : default;
     }
 
+    /// <summary>
+    /// Returns the maximum value across all buckets.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TSummerItem? Max()
     {
         var hasValue = false;
         var max = TSummerItem.Zero;
 
-        foreach (var value in Samples.Values)
+        foreach (var value in Storage.Values)
         {
             if (!hasValue)
             {
@@ -145,11 +156,14 @@ public abstract class BaseTimeSeriesSummer<TSummerItem, TSelf> : BaseTimeSeries<
         return hasValue ? max : default;
     }
 
+    /// <summary>
+    /// Returns the sum across all buckets.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public virtual TSummerItem Sum()
     {
         var total = TSummerItem.Zero;
-        foreach (var value in Samples.Values)
+        foreach (var value in Storage.Values)
         {
             total += value;
         }

@@ -1,17 +1,15 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using ManagedCode.TimeSeries.Abstractions;
 using ManagedCode.TimeSeries.Accumulators;
-using ManagedCode.TimeSeries.Summers;
-using Orleans;
 
 namespace ManagedCode.TimeSeries.Orleans;
 
-// This is a converter which converts between the surrogate and the foreign type.
+/// <summary>
+/// Orleans converter for <see cref="IntTimeSeriesAccumulator"/>.
+/// </summary>
 [RegisterConverter]
-public sealed class IntTimeSeriesAccumulatorConverter<T> : IConverter<IntTimeSeriesAccumulator, TimeSeriesAccumulatorsSurrogate<int>>
+public sealed class IntTimeSeriesAccumulatorConverter : IConverter<IntTimeSeriesAccumulator, TimeSeriesAccumulatorsSurrogate<int>>
 {
+    /// <inheritdoc />
     public IntTimeSeriesAccumulator ConvertFromSurrogate(in TimeSeriesAccumulatorsSurrogate<int> surrogate)
     {
         var series = new IntTimeSeriesAccumulator(surrogate.SampleInterval, surrogate.MaxSamplesCount);
@@ -19,13 +17,15 @@ public sealed class IntTimeSeriesAccumulatorConverter<T> : IConverter<IntTimeSer
 
         foreach (var pair in surrogate.Samples)
         {
-            converted[pair.Key] = new ConcurrentQueue<int>(pair.Value);
+            var normalizedKey = new DateTimeOffset(pair.Key.UtcDateTime, TimeSpan.Zero);
+            converted[normalizedKey] = new ConcurrentQueue<int>(pair.Value);
         }
 
         series.InitInternal(converted, surrogate.Start, surrogate.End, surrogate.LastDate, surrogate.DataCount);
         return series;
     }
 
+    /// <inheritdoc />
     public TimeSeriesAccumulatorsSurrogate<int> ConvertToSurrogate(in IntTimeSeriesAccumulator value)
     {
         var samples = value.Samples;

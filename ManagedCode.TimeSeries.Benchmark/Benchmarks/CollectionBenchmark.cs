@@ -1,8 +1,6 @@
 using BenchmarkDotNet.Attributes;
-using ManagedCode.TimeSeries.Accumulators;
 
 namespace ManagedCode.TimeSeries.Benchmark.Benchmarks;
-
 
 [SimpleJob]
 [MemoryDiagnoser]
@@ -16,10 +14,12 @@ public class CollectionBenchmark
         {
             series.Enqueue(i);
             if (series.Count > 100)
+            {
                 series.Dequeue();
+            }
         }
     }
-    
+
     [Benchmark]
     public void Queue_100_000()
     {
@@ -28,10 +28,12 @@ public class CollectionBenchmark
         {
             series.Enqueue(i);
             if (series.Count > 100)
+            {
                 series.Dequeue();
+            }
         }
     }
-    
+
     [Benchmark]
     public void Queue_10_000_000()
     {
@@ -40,10 +42,12 @@ public class CollectionBenchmark
         {
             series.Enqueue(i);
             if (series.Count > 100)
+            {
                 series.Dequeue();
+            }
         }
     }
-    
+
     [Benchmark]
     public void LinkedList_1000()
     {
@@ -52,10 +56,12 @@ public class CollectionBenchmark
         {
             series.AddLast(i);
             if (series.Count > 100)
+            {
                 series.RemoveFirst();
+            }
         }
     }
-    
+
     [Benchmark]
     public void LinkedList_100_000()
     {
@@ -64,10 +70,12 @@ public class CollectionBenchmark
         {
             series.AddLast(i);
             if (series.Count > 100)
+            {
                 series.RemoveFirst();
+            }
         }
     }
-    
+
     [Benchmark]
     public void LinkedList_10_000_000()
     {
@@ -76,10 +84,12 @@ public class CollectionBenchmark
         {
             series.AddLast(i);
             if (series.Count > 100)
+            {
                 series.RemoveFirst();
+            }
         }
     }
-    
+
     [Benchmark]
     public void List_1000()
     {
@@ -88,10 +98,12 @@ public class CollectionBenchmark
         {
             series.Add(i);
             if (series.Count > 100)
+            {
                 series.RemoveAt(0);
+            }
         }
     }
-    
+
     [Benchmark]
     public void List_100_000()
     {
@@ -100,10 +112,12 @@ public class CollectionBenchmark
         {
             series.Add(i);
             if (series.Count > 100)
+            {
                 series.RemoveAt(0);
+            }
         }
     }
-    
+
     [Benchmark]
     public void List_10_000_000()
     {
@@ -112,7 +126,9 @@ public class CollectionBenchmark
         {
             series.Add(i);
             if (series.Count > 100)
+            {
                 series.RemoveAt(0);
+            }
         }
     }
 }

@@ -2,10 +2,9 @@ using ManagedCode.TimeSeries.Abstractions;
 
 namespace ManagedCode.TimeSeries.Summers;
 
-public class DoubleGroupTimeSeriesSummer : NumberGroupTimeSeriesSummer<double>
+/// <summary>
+/// Grouped numeric summer for double-precision values.
+/// </summary>
+public class DoubleGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy, bool deleteOverdueSamples) : NumberGroupTimeSeriesSummer<double>(sampleInterval, samplesCount, strategy, deleteOverdueSamples)
 {
-    public DoubleGroupTimeSeriesSummer(TimeSpan sampleInterval, int samplesCount, Strategy strategy, bool deleteOverdueSamples)
-        : base(sampleInterval, samplesCount, strategy, deleteOverdueSamples)
-    {
-    }
 }
