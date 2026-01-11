@@ -29,7 +29,7 @@ jobs:
       - name: Build
         run: dotnet build ManagedCode.TimeSeries.slnx --configuration Release --no-restore
       - name: Test and collect code coverage
-        run: dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj --configuration Release --no-build -p:CollectCoverage=true -p:CoverletOutputFormat=lcov -p:CoverletOutput=ManagedCode.TimeSeries.Tests/
+        run: dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj --configuration Release --no-build -p:CollectCoverage=true -p:CoverletOutputFormat=lcov -p:CoverletOutput=./
       - name: coveralls
         uses: coverallsapp/github-action@master
         with:
