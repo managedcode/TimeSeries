@@ -217,7 +217,7 @@ public class AccumulatorsTests
     {
         var interval = TimeSpan.FromMilliseconds(10);
         var series = new IntTimeSeriesAccumulator(interval, 10);
-        var start = DateTimeOffset.UtcNow;
+        var start = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         for (var i = 0; i < 10; i++)
         {
