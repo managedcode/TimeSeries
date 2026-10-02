@@ -1,0 +1,167 @@
+name: TimeSeries correctness and performance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ManagedCode.TimeSeries*/**'
+      - 'Directory.*.props'
+      - '.github/workflows/performance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: timeseries-performance-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_VERSION: '10.0.401'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  correctness:
+    name: Full tests and coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Retain source and runtime
+        run: |
+          mkdir -p artifacts/correctness
+          git rev-parse HEAD > artifacts/correctness/source.txt
+          dotnet --info > artifacts/correctness/runtime.txt
+      - name: Restore
+        run: dotnet restore ManagedCode.TimeSeries.slnx
+      - name: Build with warnings as errors
+        run: dotnet build ManagedCode.TimeSeries.slnx --configuration Release --no-restore -warnaserror
+      - name: Verify formatter
+        run: dotnet format ManagedCode.TimeSeries.slnx --verify-no-changes --no-restore
+      - name: Full xUnit tests and native coverage
+        run: >-
+          dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj
+          --configuration Release --no-build --no-restore --verbosity normal
+          --logger "trx;LogFileName=timeseries.trx"
+          --results-directory artifacts/correctness
+          -p:CollectCoverage=true -p:CoverletOutputFormat=json
+          "-p:CoverletOutput=$GITHUB_WORKSPACE/artifacts/correctness/coverage.json"
+          '-p:Include=[ManagedCode.TimeSeries*]*'
+          -p:Threshold=90 -p:ThresholdType=line -p:ThresholdStat=Minimum
+      - name: Retain exact-source test and coverage evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: timeseries-correctness-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/correctness/
+          if-no-files-found: error
+          retention-days: 30
+
+  ingestion:
+    name: Ingestion ${{ matrix.mode }} repetition ${{ matrix.repetition }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [normal, scalar]
+        repetition: [1, 2]
+    env:
+      PERF_MODE: ${{ matrix.mode }}
+      PERF_REPETITION: ${{ matrix.repetition }}
+      DOTNET_EnableHWIntrinsic: ${{ matrix.mode == 'scalar' && '0' || '1' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Retain source workload and hardware identity
+        shell: bash
+        run: |
+          mkdir -p artifacts/ingestion
+          dotnet --info > artifacts/ingestion/runtime.txt
+          lscpu --json > artifacts/ingestion/cpu.json
+          git rev-parse HEAD > artifacts/ingestion/source.txt
+          node <<'MANIFEST'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const files = [
+            'ManagedCode.TimeSeries.Benchmark/Benchmarks/TimeSeriesIngressSummerBenchmark.cs',
+            'ManagedCode.TimeSeries.Benchmark/Benchmarks/TimeSeriesIngressCapacityBenchmark.cs',
+            'ManagedCode.TimeSeries.Benchmark/Benchmarks/TimeSeriesIngressEvidence.cs',
+          ];
+          const hashes = Object.fromEntries(files.map(file => [file,
+            crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')]));
+          const manifest = {
+            schema: 1, repository: process.env.GITHUB_REPOSITORY,
+            sourceRevision: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID,
+            runAttempt: process.env.GITHUB_RUN_ATTEMPT, mode: process.env.PERF_MODE,
+            repetition: Number(process.env.PERF_REPETITION),
+            enableHardwareIntrinsics: process.env.DOTNET_EnableHWIntrinsic,
+            seedUtc: '2025-01-01T00:00:00+00:00', intervalTicks: 10000000,
+            operationsPerInvoke: 64, capacities: [64, 4096],
+            numberTypes: ['Int32', 'Int64', 'Double', 'Decimal'],
+            expectedCaseCount: 16, launchCount: 2, warmupCount: 3, iterationCount: 10,
+            outliers: 'DontRemove', fixtureSha256: hashes,
+          };
+          fs.writeFileSync('artifacts/ingestion/manifest.json', JSON.stringify(manifest, null, 2) + '\n');
+          MANIFEST
+      - name: Restore
+        run: dotnet restore ManagedCode.TimeSeries.slnx
+      - name: Build with warnings as errors
+        run: dotnet build ManagedCode.TimeSeries.slnx --configuration Release --no-restore -warnaserror
+      - name: Verify formatter
+        run: dotnet format ManagedCode.TimeSeries.slnx --verify-no-changes --no-restore
+      - name: Measure real ingestion and allocations
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --project ManagedCode.TimeSeries.Benchmark --configuration Release --no-build --no-restore -- \
+            --filter '*TimeSeriesIngress*' --join --job short \
+            --launchCount 2 --warmupCount 3 --iterationCount 10 --outliers DontRemove \
+            --exporters FullJSON CSV GitHub --artifacts artifacts/ingestion/bdn \
+            --stopOnFirstError 2>&1 | tee artifacts/ingestion/console.log
+      - name: Verify native measurement completeness
+        run: |
+          node <<'VERIFY'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const path = require('node:path');
+          const root = 'artifacts/ingestion/bdn/results';
+          const names = fs.readdirSync(root).filter(name => name.endsWith('-report-full.json'));
+          if (names.length !== 1) throw new Error('Expected one joined native full report.');
+          const bytes = fs.readFileSync(path.join(root, names[0]));
+          const report = JSON.parse(bytes);
+          if (!Array.isArray(report.Benchmarks) || report.Benchmarks.length !== 16)
+            throw new Error('The native ingestion report is incomplete.');
+          for (const row of report.Benchmarks) {
+            const actual = row.Measurements?.filter(item =>
+              item.IterationMode === 'Workload' && item.IterationStage === 'Actual');
+            if (!Number.isFinite(row.Statistics?.Mean) || row.Statistics.Mean <= 0 ||
+                !Number.isFinite(row.Memory?.BytesAllocatedPerOperation) ||
+                row.Memory.BytesAllocatedPerOperation < 0 || actual?.length !== 20)
+              throw new Error('A native ingestion case has missing timing or allocation evidence.');
+          }
+          const lines = fs.readFileSync('artifacts/ingestion/console.log', 'utf8').split('\n');
+          const evidence = lines.filter(line => line.startsWith('TIMESERIES_INGRESS_EVIDENCE '))
+            .map(line => JSON.parse(line.slice('TIMESERIES_INGRESS_EVIDENCE '.length)));
+          if (evidence.length < 32) throw new Error('Post-run ingestion evidence is missing.');
+          fs.writeFileSync('artifacts/ingestion/ingestion-checksums.json', JSON.stringify(evidence, null, 2) + '\n');
+          fs.writeFileSync('artifacts/ingestion/native-report-receipt.json', JSON.stringify({
+            sourceRevision: process.env.GITHUB_SHA, file: names[0], bytes: bytes.length,
+            sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+            measuredCases: report.Benchmarks.length, checksumRecords: evidence.length,
+          }, null, 2) + '\n');
+          VERIFY
+      - name: Retain native reports logs checksums and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: timeseries-ingestion-${{ matrix.mode }}-${{ matrix.repetition }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/ingestion/
+          if-no-files-found: error
+          retention-days: 30

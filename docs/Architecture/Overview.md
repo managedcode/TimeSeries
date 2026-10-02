@@ -154,3 +154,10 @@ sequenceDiagram
 
 - ADRs: [ADR index](../ADR/index.md), [ADR-0001 UTC-normalized timestamps](../ADR/0001-utc-normalization.md)
 - Features: [Feature index](../Features/index.md), [Accumulators and Summers](../Features/accumulators-and-summers.md)
+
+## Performance and temporal arithmetic
+
+The [owning Feature](../Features/performance-and-temporal-arithmetic.md) and
+[Accepted ADR-0002](../ADR/0002-performance-and-temporal-arithmetic.md) define the
+exact temporal repair, measured ingestion work and canonical patch delivery.
+Implementation and current-source GitHub evidence remain pending.

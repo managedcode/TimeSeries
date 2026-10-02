@@ -71,6 +71,9 @@ If no new rule is detected → do not update the file.
 
 ### Task Delivery (ALL TASKS)
 
+- Maintain acceptance-derived arithmetic, concurrency and allocation regressions when improving performance. Compare repeatable exact-source baseline/candidate measurements before claiming a win; use .NET intrinsics first and consider Rust only after profiling.
+- Deliver ManagedCode dependency repairs through the canonical patch release, successful GitHub publication and verified NuGet availability before changing consuming package references; preserve unrelated source work.
+
 - Architecture-first, no exceptions: always start from `docs/Architecture/Overview.md` to locate modules and boundaries; if it is missing, stop and ask for bootstrap (do not add file-creation logic to AGENTS.md).
 - Git history pattern: commit messages are short, lowercase summaries without conventional prefixes; keep under ~60 chars.
 - Branch naming: only `main` is present; if a branch is needed, use short lowercase names (no new scheme).

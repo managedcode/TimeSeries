@@ -1,3 +1,3 @@
 using BenchmarkDotNet.Running;
 
-var _ = BenchmarkRunner.Run(typeof(Program).Assembly);
+BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
