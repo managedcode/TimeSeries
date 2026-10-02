@@ -1,6 +1,6 @@
 # ADR-0002: measured ingestion and exact temporal arithmetic
 
-Status: Accepted; temporal arithmetic and release workflow repair are released in v10.0.2 with exact-source tests, coverage, native profiles, package signatures and feed payloads verified. The selected summer allocation candidate for v10.0.3 awaits exact-source correctness and repeated performance qualification.
+Status: Accepted; temporal arithmetic and release workflow repair are qualified in v10.0.2. The selected summer allocation repair is qualified and released in v10.0.3 with exact-source tests, per-module coverage, repeated native profiles, package signatures and intended-feed payloads verified. Capacity optimization remains deferred.
 
 ## Decision
 
@@ -155,8 +155,31 @@ Ordered implementation contract:
 Compatibility/rollback: public APIs and serialization remain unchanged; the
 existing protected overload remains source-compatible. Revert the generic-state
 path if matched profiles fail to reduce allocation without preserving every
-correctness criterion. The 43a1427 profile is the retained baseline; no capacity
-algorithm or claims are included in this stage.
+correctness criterion. The corrected-arithmetic 2c9118b profile is the retained
+pre-summer baseline; no capacity algorithm or claims are included in this stage.
+
+Qualification record: source commit `de44e91ecf38779b61fe79a51153ce7b7b4db0ea`
+passed exact-source Release build/formatter, 1107/1107 xUnit tests, Core line
+coverage 687/725 (94.76%), and Orleans 205/212 (96.70%) in release run
+[37077860613](https://github.com/managedcode/TimeSeries/actions/runs/37077860613).
+Its four repeated 16-case normal/scalar profiles passed in
+[37077860508](https://github.com/managedcode/TimeSeries/actions/runs/37077860508).
+They measured 160 to 0 bytes/update for Int32/Int64/Double and 232 to 64 for
+Decimal summer updates. Matched normal AMD EPYC 9V74 and 7763 profile pairs
+showed lower means. The scalar timing comparison is paired only for baseline
+scalar repetition 2 and candidate scalar repetition 1, both on AMD EPYC 7763;
+the other scalar CPU cohorts are unpaired.
+Since BenchmarkDotNet calibrates invocation counts, raw DataCount and the
+resulting value hashes vary between runs. Every summer checksum was independently
+recomputed from its DataCount and bucket values for both baseline and candidate
+profiles. Capped-ingress checksums remain recorded but were not independently
+recomputed; the workflow's native completeness gate passed for them. Release run
+[37077860613](https://github.com/managedcode/TimeSeries/actions/runs/37077860613)
+published both fresh v10.0.3 packages; GitHub assets and signed intended-feed
+package payloads were verified. Native evidence is retained under
+`/private/tmp/timeseries-run-de44e91/`, package artifacts under
+`/private/tmp/timeseries-release-10.0.3-run/`, and entry comparison under
+`/private/tmp/timeseries-package-compare-10.0.3/`.
 
 ## Compatibility, rollback and limits
 

@@ -1,6 +1,6 @@
 # Performance and temporal arithmetic
 
-Status: temporal arithmetic is released in v10.0.1 and its native regression suite passes; release publication integrity is repaired and qualified in v10.0.2. The approved summer allocation candidate is prepared for v10.0.3 and awaits exact-source correctness, coverage and repeated performance qualification. This slice remains in progress until the selected summer change passes all gates and the owning release/feed proof is complete.
+Status: temporal arithmetic and release publication integrity are qualified in v10.0.2. The approved summer allocation repair is qualified and released in v10.0.3 with exact-source correctness, coverage, repeated normal/scalar profiles, and signed NuGet feed contents verified. Capacity optimization remains deferred.
 
 ## Requirements and acceptance
 
@@ -141,6 +141,33 @@ late-arrival and multi-writer regressions, and source review before profiling.
   performance run passed all four repeated 16-case normal/scalar profiles and is
   the exact pre-summer baseline at `/private/tmp/timeseries-run-2c9118b/`.
 - The current generic-state summer candidate retains the original protected
-  callback API and one CAS loop. Its source/test diff is under root review; no
-  10.0.3 performance or release claim is made until a fresh exact-source GitHub
-  run passes all correctness, coverage, profile and feed gates.
+  callback API and one CAS loop. Commit `de44e91ecf38779b61fe79a51153ce7b7b4db0ea`
+  passed exact-source Release build/format, 1107/1107 xUnit tests, Core line
+  coverage 687/725 (94.76%), and Orleans 205/212 (96.70%) in release run
+  [37077860613](https://github.com/managedcode/TimeSeries/actions/runs/37077860613).
+  Its four native profiles passed in
+  [37077860508](https://github.com/managedcode/TimeSeries/actions/runs/37077860508):
+  each retained 16 cases, two launches by ten measured iterations, CPU/runtime/
+  source manifests and 32 checksum records. Summer allocations fell from 160 to
+  0 bytes/update for Int32/Int64/Double and 232 to 64 bytes/update for Decimal.
+  On matched AMD EPYC 9V74 and 7763 normal repetitions, measured summer means
+  also fell. The scalar timing comparison is paired only for baseline scalar
+  repetition 2 and candidate scalar repetition 1, both on AMD EPYC 7763; the
+  other scalar CPU cohorts are unpaired. Raw `DataCount` varies with
+  BenchmarkDotNet's calibrated invocation count, so cross-run hashes need not be
+  byte-identical; independently recomputed
+  summer bucket hashes from each recorded count matched every raw checksum in
+  all baseline and candidate profiles. Capped-ingress checksums remain recorded
+  but were not independently recomputed; the workflow's native completeness gate
+  passed for those profiles.
+- Release job URLs are
+  [build/tests/coverage/packages](https://github.com/managedcode/TimeSeries/actions/runs/37077860613/job/111071655238),
+  [publish](https://github.com/managedcode/TimeSeries/actions/runs/37077860613/job/111071798011),
+  and [tag/release](https://github.com/managedcode/TimeSeries/actions/runs/37077860613/job/111071855651).
+  Both exact v10.0.3 packages were freshly published, the GitHub release assets
+  match the build artifacts, and both intended-feed packages passed NuGet
+  Repository signature verification and entry comparison (excluding only the
+  repository signature entry). The package and profile receipts are retained at
+  `/private/tmp/timeseries-release-10.0.3-run/`,
+  `/private/tmp/timeseries-package-compare-10.0.3/`, and
+  `/private/tmp/timeseries-run-de44e91/`.
