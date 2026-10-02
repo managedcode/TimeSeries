@@ -56,6 +56,25 @@ URLs/SHAs, NuGet feed/package receipt. A pushed commit alone is not delivery.
 The original library release commands remain canonical. No local runtime tests or
 benchmarks are run for this KeyLoad work.
 
+## Execution ownership update (2026-10-03)
+
+The human explicitly delegated the owning dependency repair and delivery to the
+Luna worker. Luna is the sole TimeSeries source, test, benchmark, workflow,
+canonical patch-version, commit/push, release and NuGet-verification owner. Root
+independently reviews each owning-repository diff and exact-SHA evidence and owns
+the KeyLoad package reference and consumer regressions after both Core and Orleans
+packages are available from the intended feed. Any new performance-source diff
+requires its own concrete review packet before it is pushed.
+
+The ordered contract above records the historical initial root stages and remains
+in place. This dated addendum changes execution ownership only. The join points
+are root review before the first candidate push; successful exact-SHA correctness,
+90% line coverage and repeated ingestion profiles before selecting a production
+optimization; another root review before pushing any later performance-source
+change; and consumer work after package/feed verification. All Git protections,
+qualification gates, public contracts and preservation requirements remain in
+force.
+
 ## Compatibility, rollback and limits
 
 No persisted data or Orleans converter fields migrate. Existing public/protected

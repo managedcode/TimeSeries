@@ -46,3 +46,25 @@ For this KeyLoad dependency work runtime tests/benchmarks execute in GitHub;
 development builds and formatter results are distinct evidence.
 Manual review complements automated tests for ownership, source/artifact matching
 and unchanged wire fields; no numeric coverage exception is authorized.
+
+## Execution ownership update (2026-10-03)
+
+The human explicitly delegated the ManagedCode.TimeSeries dependency repair and
+release to the Luna worker. Luna is the sole source-repository owner for the
+accepted TimeSpan/DateTimeOffset repair, any profile-selected TimeSeries
+optimization, owning regressions and benchmarks, owning CI qualification, the
+canonical patch version, scoped commits/pushes, GitHub release and NuGet feed
+verification. Luna preserves unrelated pre-existing central package pins and
+coordinates any changed performance implementation with the root reviewer before
+the next push. Root independently reviews every owning diff and exact-source
+evidence, then owns the KeyLoad package update and consumer regressions only after
+the Core and Orleans packages are available from the intended feed.
+
+The original ordered stages and historical root ownership above remain as the
+record of the initial plan. This dated addendum changes the execution owner only;
+it does not change REQ-TS-101..106, AC-TS-101..106, package/public contracts,
+verification gates, or release protections. Join points are: root review before
+the first candidate push; exact-SHA GitHub test/coverage and repeated ingestion
+profiles before any performance change; root review before a later
+performance-source push; and root consumer work after both feed packages and
+their bytes are verified.

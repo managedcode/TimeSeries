@@ -11,8 +11,19 @@ public static class RoundDateTimeAndTimeSpanExtensions
     /// <param name="time">The time span to round.</param>
     /// <param name="roundingInterval">The interval to round to.</param>
     /// <param name="roundingType">The midpoint rounding mode.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The interval is not positive or the rounding mode is not supported.</exception>
+    /// <exception cref="OverflowException">The rounded result cannot be represented by a <see cref="TimeSpan"/>.</exception>
     public static TimeSpan Round(this TimeSpan time, TimeSpan roundingInterval, MidpointRounding roundingType)
     {
+        if (roundingType is not (MidpointRounding.ToEven or
+            MidpointRounding.AwayFromZero or
+            MidpointRounding.ToZero or
+            MidpointRounding.ToNegativeInfinity or
+            MidpointRounding.ToPositiveInfinity))
+        {
+            throw new ArgumentOutOfRangeException(nameof(roundingType), roundingType, "Unsupported midpoint rounding mode.");
+        }
+
         if (roundingInterval <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(roundingInterval), "Rounding interval must be positive.");
@@ -25,8 +36,8 @@ public static class RoundDateTimeAndTimeSpanExtensions
         }
 
         var ticks = time.Ticks;
-        var sign = ticks < 0 ? -1 : 1;
-        var absTicks = ticks < 0 ? (ulong)(-ticks) : (ulong)ticks;
+        var negative = ticks < 0;
+        var absTicks = negative ? (ulong)(-(ticks + 1)) + 1UL : (ulong)ticks;
         var absInterval = (ulong)intervalTicks;
 
         var quotient = absTicks / absInterval;
@@ -37,18 +48,26 @@ public static class RoundDateTimeAndTimeSpanExtensions
             return time;
         }
 
-        if (roundingType is not (MidpointRounding.ToEven or MidpointRounding.AwayFromZero))
+        var roundUp = ShouldIncrement(quotient, remainder, absInterval, negative, roundingType);
+        var roundedMagnitude = (quotient + (roundUp ? 1UL : 0UL)) * absInterval;
+
+        if (negative)
         {
-            return RoundWithDecimal(time, roundingInterval, roundingType);
+            const ulong MinMagnitude = 1UL << 63;
+            if (roundedMagnitude > MinMagnitude)
+            {
+                throw new OverflowException("The rounded time span is outside the representable range.");
+            }
+
+            return new TimeSpan(roundedMagnitude == MinMagnitude ? long.MinValue : -(long)roundedMagnitude);
         }
 
-        var roundUp = roundingType == MidpointRounding.AwayFromZero
-            ? remainder * 2 >= absInterval
-            : ShouldRoundToEven(quotient, remainder, absInterval);
+        if (roundedMagnitude > long.MaxValue)
+        {
+            throw new OverflowException("The rounded time span is outside the representable range.");
+        }
 
-        var rounded = (quotient + (roundUp ? 1UL : 0UL)) * absInterval;
-        var roundedTicks = sign < 0 ? -(long)rounded : (long)rounded;
-        return new TimeSpan(roundedTicks);
+        return new TimeSpan((long)roundedMagnitude);
     }
 
     /// <summary>
@@ -80,7 +99,7 @@ public static class RoundDateTimeAndTimeSpanExtensions
     {
         var datetime = dateTimeOffset.UtcDateTime.Round(roundingInterval);
 
-        return new DateTimeOffset(datetime, dateTimeOffset.Offset);
+        return new DateTimeOffset(datetime.Ticks, TimeSpan.Zero).ToOffset(dateTimeOffset.Offset);
     }
 
     /// <summary>
@@ -91,13 +110,25 @@ public static class RoundDateTimeAndTimeSpanExtensions
     public static DateTimeOffset RoundUtc(this DateTimeOffset dateTimeOffset, TimeSpan roundingInterval)
     {
         var datetime = dateTimeOffset.UtcDateTime.Round(roundingInterval);
-        return new DateTimeOffset(datetime, TimeSpan.Zero);
+        return new DateTimeOffset(datetime.Ticks, TimeSpan.Zero);
     }
 
-    private static TimeSpan RoundWithDecimal(TimeSpan time, TimeSpan roundingInterval, MidpointRounding roundingType)
+    private static bool ShouldIncrement(
+        ulong quotient,
+        ulong remainder,
+        ulong interval,
+        bool negative,
+        MidpointRounding roundingType)
     {
-        var rounded = Math.Round(time.Ticks / (decimal)roundingInterval.Ticks, roundingType);
-        return new TimeSpan(Convert.ToInt64(rounded) * roundingInterval.Ticks);
+        return roundingType switch
+        {
+            MidpointRounding.ToEven => ShouldRoundToEven(quotient, remainder, interval),
+            MidpointRounding.AwayFromZero => remainder * 2UL >= interval,
+            MidpointRounding.ToZero => false,
+            MidpointRounding.ToNegativeInfinity => negative,
+            MidpointRounding.ToPositiveInfinity => !negative,
+            _ => throw new ArgumentOutOfRangeException(nameof(roundingType), roundingType, "Unsupported midpoint rounding mode.")
+        };
     }
 
     private static bool ShouldRoundToEven(ulong quotient, ulong remainder, ulong interval)

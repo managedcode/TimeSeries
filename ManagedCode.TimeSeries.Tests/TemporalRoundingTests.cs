@@ -126,7 +126,7 @@ public class TemporalRoundingDateTimeTests
         var utcTicks = (lowerBucket + 1) * interval.Ticks + 1;
         var utc = new DateTimeOffset(new DateTime(utcTicks, DateTimeKind.Utc));
         var input = utc.ToOffset(offset);
-        var expectedTicks = RoundTicks(utcTicks, interval.Ticks, MidpointRounding.ToEven);
+        var expectedTicks = RoundTicks(utcTicks, interval.Ticks);
         expectedTicks.ShouldNotBeNull();
         var expectedUtc = new DateTimeOffset(new DateTime(expectedTicks.Value, DateTimeKind.Unspecified), TimeSpan.Zero);
 
@@ -159,7 +159,7 @@ public class TemporalRoundingDateTimeTests
         foreach (var ticks in candidates)
         {
             var input = new DateTime(ticks, kind);
-            var expectedTicks = RoundTicks(ticks, interval.Ticks, MidpointRounding.ToEven);
+            var expectedTicks = RoundTicks(ticks, interval.Ticks);
             if (expectedTicks is null || expectedTicks < DateTime.MinValue.Ticks || expectedTicks > DateTime.MaxValue.Ticks)
             {
                 Should.Throw<ArgumentOutOfRangeException>(() => input.Round(interval));
@@ -183,7 +183,7 @@ public class TemporalRoundingDateTimeTests
         Should.Throw<ArgumentOutOfRangeException>(() => input.RoundUtc(TimeSpan.FromTicks(intervalTicks)));
     }
 
-    private static long? RoundTicks(long ticks, long intervalTicks, MidpointRounding mode)
+    private static long? RoundTicks(long ticks, long intervalTicks)
     {
         var value = new BigInteger(ticks);
         var interval = new BigInteger(intervalTicks);
