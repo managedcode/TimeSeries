@@ -24,8 +24,8 @@
         <RepositoryUrl>https://github.com/managedcode/TimeSeries</RepositoryUrl>
         <PackageProjectUrl>https://github.com/managedcode/TimeSeries</PackageProjectUrl>
         <Product>Managed Code - TimeSeries</Product>
-        <Version>10.0.1</Version>
-        <PackageVersion>10.0.1</PackageVersion>
+        <Version>10.0.2</Version>
+        <PackageVersion>10.0.2</PackageVersion>
 
     </PropertyGroup>
     <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">

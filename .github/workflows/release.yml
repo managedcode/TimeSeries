@@ -20,10 +20,18 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v5
 
+    - name: Retain source and runtime
+      run: |
+        mkdir -p artifacts/qualification
+        git rev-parse HEAD > artifacts/qualification/source.txt
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Retain configured runtime
+      run: dotnet --info > artifacts/qualification/runtime.txt
 
     - name: Extract version from Directory.Build.props
       id: version
@@ -39,10 +47,43 @@ jobs:
       run: dotnet build ManagedCode.TimeSeries.slnx --configuration Release --no-restore
 
     - name: Test
-      run: dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj --configuration Release --no-build --verbosity normal
+      run: >-
+        dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj
+        --configuration Release --no-build --verbosity normal
+        --logger "trx;LogFileName=timeseries-release.trx"
+        --results-directory artifacts/qualification
+        -p:CollectCoverage=true -p:CoverletOutputFormat=json
+        "-p:CoverletOutput=$GITHUB_WORKSPACE/artifacts/qualification/coverage.json"
+        '-p:Include=[ManagedCode.TimeSeries*]*'
+        -p:Threshold=90 -p:ThresholdType=line -p:ThresholdStat=Minimum
+
+    - name: Retain release qualification evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: timeseries-release-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: artifacts/qualification/
+        if-no-files-found: error
+        retention-days: 30
 
     - name: Pack NuGet packages
       run: dotnet pack ManagedCode.TimeSeries.slnx --configuration Release --no-build -p:IncludeSymbols=false -p:SymbolPackageFormat=snupkg --output ./artifacts
+
+    - name: Verify exact package pair and retain hashes
+      shell: bash
+      run: |
+        set -euo pipefail
+        version='${{ steps.version.outputs.version }}'
+        core="./artifacts/ManagedCode.TimeSeries.${version}.nupkg"
+        orleans="./artifacts/ManagedCode.TimeSeries.Orleans.${version}.nupkg"
+        shopt -s nullglob
+        packages=(./artifacts/*.nupkg)
+        if [[ ${#packages[@]} -ne 2 || ! -f "$core" || ! -f "$orleans" ]]; then
+          echo "Expected exactly the Core and Orleans package pair for ${version}." >&2
+          printf 'Found: %s\n' "${packages[@]}" >&2
+          exit 1
+        fi
+        sha256sum "$core" "$orleans" > artifacts/qualification/packages.sha256
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -50,6 +91,14 @@ jobs:
         name: nuget-packages
         path: ./artifacts/*.nupkg
         retention-days: 5
+
+    - name: Retain exact release package hashes
+      uses: actions/upload-artifact@v4
+      with:
+        name: timeseries-release-package-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+        path: artifacts/qualification/packages.sha256
+        if-no-files-found: error
+        retention-days: 30
 
   publish-nuget:
     name: Publish to NuGet
@@ -78,40 +127,80 @@ jobs:
 
     - name: Publish to NuGet
       id: publish
-      continue-on-error: true
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
       run: |
-        set +e
-        OUTPUT=""
-        PUBLISHED=false
+        set -euo pipefail
+        version='${{ needs.build.outputs.version }}'
+        core="./artifacts/ManagedCode.TimeSeries.${version}.nupkg"
+        orleans="./artifacts/ManagedCode.TimeSeries.Orleans.${version}.nupkg"
+        shopt -s nullglob
+        packages=(./artifacts/*.nupkg)
+        if [[ ${#packages[@]} -ne 2 || ! -f "$core" || ! -f "$orleans" ]]; then
+          echo "Expected exactly the Core and Orleans package pair for ${version}." >&2
+          printf 'Found: %s\n' "${packages[@]}" >&2
+          exit 1
+        fi
 
+        mkdir -p artifacts/publish
+        git rev-parse HEAD > artifacts/publish/source.txt
+        dotnet --info > artifacts/publish/runtime.txt
+        sha256sum "$core" "$orleans" > artifacts/publish/packages.sha256
+        fresh=0
+        duplicates=0
         for package in ./artifacts/*.nupkg; do
           echo "Publishing $package..."
-          RESULT=$(dotnet nuget push "$package" \
-            --api-key ${{ secrets.NUGET_API_KEY }} \
+          resultFile="artifacts/publish/$(basename "$package").log"
+          if RESULT=$(dotnet nuget push "$package" \
+            --api-key "$NUGET_API_KEY" \
             --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate 2>&1)
-          EXIT_CODE=$?
-          echo "$RESULT"
-          OUTPUT="$OUTPUT$RESULT"
-
-          if [ $EXIT_CODE -eq 0 ]; then
-            echo "Successfully published $package"
-            PUBLISHED=true
-          elif echo "$RESULT" | grep -q "already exists"; then
-            echo "Package already exists, skipping..."
+            2>&1); then
+            echo "$RESULT"
+            printf '%s\n' "$RESULT" > "$resultFile"
+            if grep -Fq "Your package was pushed." <<< "$RESULT"; then
+              fresh=$((fresh + 1))
+              printf '%s\t%s\n' "$(basename "$package")" "fresh" >> artifacts/publish/outcomes.tsv
+            else
+              echo "NuGet returned an unrecognized successful response for $package." >&2
+              printf '%s\t%s\n' "$(basename "$package")" "provider-error" >> artifacts/publish/outcomes.tsv
+              exit 1
+            fi
           else
-            echo "Failed to publish $package"
-            exit 1
+            echo "$RESULT" >&2
+            printf '%s\n' "$RESULT" > "$resultFile"
+            if grep -Eiq '409.*conflict|already exists' <<< "$RESULT"; then
+              duplicates=$((duplicates + 1))
+              printf '%s\t%s\n' "$(basename "$package")" "duplicate" >> artifacts/publish/outcomes.tsv
+            else
+              printf '%s\t%s\n' "$(basename "$package")" "provider-error" >> artifacts/publish/outcomes.tsv
+              echo "NuGet rejected $package." >&2
+              exit 1
+            fi
           fi
         done
 
-        if [ "$PUBLISHED" = true ] || echo "$OUTPUT" | grep -q "Your package was pushed"; then
+        if [[ $fresh -gt 0 && $duplicates -gt 0 ]]; then
+          echo "NuGet accepted a mixed fresh/duplicate package pair; no release will be created." >&2
+          exit 1
+        elif [[ $fresh -eq 2 && $duplicates -eq 0 ]]; then
           echo "published=true" >> $GITHUB_OUTPUT
-          echo "At least one package was successfully published"
-        else
+          echo "Both intended packages were newly published."
+        elif [[ $fresh -eq 0 && $duplicates -eq 2 ]]; then
           echo "published=false" >> $GITHUB_OUTPUT
-          echo "No new packages were published (all already exist)"
+          echo "Both intended packages already exist; no new release will be created."
+        else
+          echo "Unexpected NuGet publish outcome counts: fresh=$fresh duplicates=$duplicates." >&2
+          exit 1
         fi
+
+    - name: Retain NuGet publish outcomes
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: timeseries-nuget-publish-${{ github.run_id }}-${{ github.run_attempt }}
+        path: artifacts/publish/
+        if-no-files-found: error
+        retention-days: 30
 
   create-release:
     name: Create GitHub Release and Tag
@@ -142,14 +231,13 @@ jobs:
         git config user.email "github-actions[bot]@users.noreply.github.com"
 
         if git rev-parse "$TAG" >/dev/null 2>&1; then
-          echo "Tag $TAG already exists"
-          echo "tag_exists=true" >> $GITHUB_OUTPUT
-        else
-          echo "Creating tag $TAG"
-          git tag -a "$TAG" -m "Release $VERSION"
-          git push origin "$TAG"
-          echo "tag_exists=false" >> $GITHUB_OUTPUT
+          echo "::error::Tag $TAG already exists; refusing to replace its release assets."
+          exit 1
         fi
+
+        echo "Creating tag $TAG"
+        git tag -a "$TAG" -m "Release $VERSION"
+        git push origin "$TAG"
 
     - name: Get previous tag
       id: prev_tag
@@ -224,4 +312,5 @@ jobs:
         draft: false
         prerelease: false
         files: ./artifacts/*.nupkg
+        overwrite_files: false
         token: ${{ secrets.GITHUB_TOKEN }}

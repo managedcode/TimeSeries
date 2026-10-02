@@ -75,6 +75,89 @@ change; and consumer work after package/feed verification. All Git protections,
 qualification gates, public contracts and preservation requirements remain in
 force.
 
+## Release workflow contract amendment (2026-10-03)
+
+Related requirement/acceptance: REQ-TS-106 and AC-TS-106 in the
+[Feature](../Features/performance-and-temporal-arithmetic.md).
+
+The v10.0.1 duplicate run proved that `--skip-duplicate` returned exit code zero,
+set `published=true`, and replaced the existing GitHub release assets with
+repacked bytes. The owning release workflow must keep fresh NuGet publication and
+release asset mutation distinct and verifiable.
+
+Ordered implementation contract:
+
+1. Luna owns `.github/workflows/release.yml`; require the Release job's build,
+   full owning xUnit suite, and at least 90% line coverage before package publish.
+2. Validate the artifact directory contains exactly the Core and Orleans nupkg
+   pair for the canonical version. Pass the NuGet key through a masked environment
+   variable and quote its use.
+3. Publish without `--skip-duplicate`. Record successful uploads and duplicate
+   conflicts separately. All-duplicate runs set `published=false` and skip the
+   release job. Mixed new/duplicate outcomes and all non-duplicate provider errors
+   fail the workflow visibly, with no release asset update.
+4. Before creating a tag/release, fail if that version tag already exists. Never
+   overwrite or replace a pre-existing tag or GitHub release asset.
+5. Retain source SHA, run/job URLs, test/coverage/package artifacts, package
+   SHA-256 values, feed availability and package hashes, package IDs/versions,
+   repository commit metadata, and GitHub release asset hashes.
+6. For a fresh patch release, independently verify package IDs, versions,
+   repository commit metadata and assembly payloads from the intended NuGet feed.
+   Account for NuGet repository signing: verify the signature and compare
+   extracted package entries, excluding only `.signature.p7s`, instead of
+   requiring signed-feed ZIP bytes to equal the unsigned build artifact bytes.
+   GitHub release assets must match the exact build artifact bytes. Then root owns
+   the KeyLoad consumer update. A same-source manual dispatch after fresh release
+   verifies duplicate detection and unchanged asset hashes. Mixed publication,
+   provider-error, and pre-existing-tag branches are review-only; intentionally
+   attempting a partial production release is not authorized.
+
+Compatibility/rollback: keep package IDs and public APIs unchanged. Never delete
+or overwrite already-published NuGet versions. Any correction to an already
+published source requires a new canonical patch version. Root reviews the owning
+workflow diff before the version bump is pushed; Luna implements and qualifies it.
+
+## First profile-selected summer allocation stage (2026-10-03)
+
+Related requirement/acceptance: REQ-TS-103 and AC-TS-103 in the
+[Feature](../Features/performance-and-temporal-arithmetic.md).
+
+The retained 43a1427 normal/scalar profiles show 160 allocated bytes per
+same-bucket update for Int32/Int64/Double summers and 232 bytes for Decimal.
+The bounded first candidate removes captured delegates from the existing
+summer paths while keeping the concurrent dictionary compare-and-swap (CAS)
+as the sole update implementation.
+
+Ordered implementation contract:
+
+1. Add a protected generic-state overload in `BaseTimeSeries<T, TSample, TSelf>`
+   and keep its existing protected delegate-based overload intact. Both overloads
+   must route into one CAS loop, with no direct storage bypass.
+2. In `BaseNumberTimeSeriesSummer<TNumber, TSelf>`, pass `(this, value)` state
+   and static add/update delegates for `AddData`, `Merge`, and `Resample`. The
+   update delegate reads `Strategy` from the same instance on every retry.
+3. Preserve all five supported numeric types, four strategies, numeric overflow
+   policy, DataCount, UTC normalization, range, merge/resample and concurrent
+   multi-writer behavior. Do not add locks, fields, wire data or collections.
+4. Update owning tests before production code: matrix strategies and supported
+   numeric types over both new and existing buckets; verify merge/resample; add
+   multi-writer exact totals and range checks after quiescence.
+5. Run owning Release build/formatter locally only. Qualification remains in
+   GitHub Actions: full xUnit and 90% coverage, followed by the existing 16-case
+   repeated normal/scalar ingestion profiles with exact checksums/source/runtime/
+   CPU and raw operation counts. Compare matched profiles with 43a1427; do not
+   call normalized 64-invoke batch results “per batch” when raw operation counts
+   show per-update values.
+6. Send root the complete source/test diff and hash for review before commit or
+   push. If a later capacity proposal is selected, keep it separate and record
+   the concurrent trimming contract and independent acceptance before editing.
+
+Compatibility/rollback: public APIs and serialization remain unchanged; the
+existing protected overload remains source-compatible. Revert the generic-state
+path if matched profiles fail to reduce allocation without preserving every
+correctness criterion. The 43a1427 profile is the retained baseline; no capacity
+algorithm or claims are included in this stage.
+
 ## Compatibility, rollback and limits
 
 No persisted data or Orleans converter fields migrate. Existing public/protected
