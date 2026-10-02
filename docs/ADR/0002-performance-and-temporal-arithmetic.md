@@ -1,6 +1,6 @@
 # ADR-0002: measured ingestion and exact temporal arithmetic
 
-Status: Accepted; runtime evidence and patch delivery pending.
+Status: Accepted; temporal arithmetic and release workflow repair are released in v10.0.2 with exact-source tests, coverage, native profiles, package signatures and feed payloads verified. The selected summer allocation candidate for v10.0.3 awaits exact-source correctness and repeated performance qualification.
 
 ## Decision
 

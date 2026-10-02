@@ -382,11 +382,25 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
 
     protected TSample AddOrUpdateSample(DateTimeOffset key, Func<TSample> addFactory, Func<TSample, TSample> updateFactory)
     {
+        var factories = (Add: addFactory, Update: updateFactory);
+        return AddOrUpdateSample(
+            key,
+            factories,
+            static state => state.Add(),
+            static (current, state) => state.Update(current));
+    }
+
+    protected TSample AddOrUpdateSample<TArg>(
+        DateTimeOffset key,
+        TArg argument,
+        Func<TArg, TSample> addFactory,
+        Func<TSample, TArg, TSample> updateFactory)
+    {
         while (true)
         {
             if (_samples.TryGetValue(key, out var existing))
             {
-                var updated = updateFactory(existing);
+                var updated = updateFactory(existing, argument);
                 if (_samples.TryUpdate(key, updated, existing))
                 {
                     UpdateRange(key);
@@ -396,7 +410,7 @@ public abstract class BaseTimeSeries<T, TSample, TSelf> :
                 continue;
             }
 
-            var created = addFactory();
+            var created = addFactory(argument);
             if (_samples.TryAdd(key, created))
             {
                 UpdateOnAdd(key);

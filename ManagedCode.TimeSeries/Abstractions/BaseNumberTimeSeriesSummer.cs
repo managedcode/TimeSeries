@@ -17,9 +17,12 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf>(TimeSpan sample
 
     protected override void AddData(DateTimeOffset date, TNumber data)
     {
-        AddOrUpdateSample(date,
-            () => data,
-            current => Update(current, data));
+        var state = (Owner: this, Value: data);
+        AddOrUpdateSample(
+            date,
+            state,
+            static context => context.Value,
+            static (current, context) => context.Owner.Update(current, context.Value));
     }
 
     /// <inheritdoc />
@@ -38,9 +41,12 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf>(TimeSpan sample
 
         foreach (var sample in accumulator.Samples)
         {
-            AddOrUpdateSample(sample.Key,
-                () => sample.Value,
-                current => Update(current, sample.Value));
+            var state = (Owner: this, Value: sample.Value);
+            AddOrUpdateSample(
+                sample.Key,
+                state,
+                static context => context.Value,
+                static (current, context) => context.Owner.Update(current, context.Value));
         }
     }
 
@@ -67,9 +73,12 @@ public abstract class BaseNumberTimeSeriesSummer<TNumber, TSelf>(TimeSpan sample
         foreach (var (key, value) in snapshot)
         {
             var roundedKey = key.RoundUtc(SampleInterval);
-            AddOrUpdateSample(roundedKey,
-                () => value,
-                current => Update(current, value));
+            var state = (Owner: this, Value: value);
+            AddOrUpdateSample(
+                roundedKey,
+                state,
+                static context => context.Value,
+                static (current, context) => context.Owner.Update(current, context.Value));
 
             if (!lastObservedSample.HasValue || roundedKey > lastObservedSample.Value)
             {

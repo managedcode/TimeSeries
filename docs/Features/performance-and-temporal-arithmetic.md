@@ -1,6 +1,6 @@
 # Performance and temporal arithmetic
 
-Status: source contract accepted; implementation and current-source GitHub evidence pending.
+Status: temporal arithmetic is released in v10.0.1 and its native regression suite passes; release publication integrity is repaired and qualified in v10.0.2. The approved summer allocation candidate is prepared for v10.0.3 and awaits exact-source correctness, coverage and repeated performance qualification. This slice remains in progress until the selected summer change passes all gates and the owning release/feed proof is complete.
 
 ## Requirements and acceptance
 
@@ -122,3 +122,25 @@ another allocation hotspot, but its concurrent trimming semantics remain under
 review. The current work does not change `EnsureCapacity` or its range logic.
 Any later capacity implementation needs its own bounded concurrency contract,
 late-arrival and multi-writer regressions, and source review before profiling.
+
+### Exact-source execution record (2026-10-03)
+
+- `43a142759d3b9fa65d10a58559def98ab0020b75` delivered the temporal arithmetic
+  repair as v10.0.1; its exact-source Release job passed. The later v10.0.1
+  duplicate-run asset overwrite is retained as a delivery defect and was repaired
+  by the v10.0.2 release workflow contract.
+- `64cba752e366fec74f8a09c0450ce724d483012e` made the capacity fixture start
+  deterministic. Its full performance workflow later passed, including all
+  repeated normal/scalar measurements; the earlier failed IsFull timing fixture
+  is retained in the plan history.
+- `2c9118b6fbd45a5170682d345d66cba4ad6e8f2d` delivered v10.0.2. Its Release
+  workflow passed build and 1104/1104 xUnit tests; line coverage was Core 668/710
+  (94.08%) and Orleans 205/212 (96.70%). Both packages were freshly published,
+  signed feed contents matched the package payloads, and a same-source duplicate
+  dispatch skipped release mutation with unchanged asset hashes. Its native
+  performance run passed all four repeated 16-case normal/scalar profiles and is
+  the exact pre-summer baseline at `/private/tmp/timeseries-run-2c9118b/`.
+- The current generic-state summer candidate retains the original protected
+  callback API and one CAS loop. Its source/test diff is under root review; no
+  10.0.3 performance or release claim is made until a fresh exact-source GitHub
+  run passes all correctness, coverage, profile and feed gates.

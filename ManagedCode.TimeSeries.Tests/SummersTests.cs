@@ -1,3 +1,4 @@
+using System.Numerics;
 using ManagedCode.TimeSeries.Abstractions;
 using ManagedCode.TimeSeries.Accumulators;
 using ManagedCode.TimeSeries.Summers;
@@ -304,6 +305,26 @@ public class SummersTests
     }
 
     [Fact]
+    public void NumberTimeSeriesSummerStrategiesCoverSupportedNumericTypes()
+    {
+        AssertStrategies<int>(2, 3, 4);
+        AssertStrategies<long>(2, 3, 4);
+        AssertStrategies<float>(2, 3, 4);
+        AssertStrategies<double>(2, 3, 4);
+        AssertStrategies<decimal>(2, 3, 4);
+    }
+
+    [Fact]
+    public void NumberTimeSeriesSummerMergeAndResamplePreserveStrategiesAcrossNumericTypes()
+    {
+        AssertMergeAndResample<int>();
+        AssertMergeAndResample<long>();
+        AssertMergeAndResample<float>();
+        AssertMergeAndResample<double>();
+        AssertMergeAndResample<decimal>();
+    }
+
+    [Fact]
     public void DoubleTimeSeriesSummerConstructorsRespectStrategy()
     {
         var explicitStrategy = new DoubleTimeSeriesSummer(TimeSpan.FromMilliseconds(5), maxSamplesCount: 3, strategy: Strategy.Max);
@@ -328,6 +349,90 @@ public class SummersTests
         summer.Sum().ShouldBe(4.0f);
         summer.Min().ShouldNotBeNull();
         summer.Max().ShouldNotBeNull();
+    }
+
+    private static void AssertStrategies<TNumber>(TNumber first, TNumber second, TNumber newBucketValue)
+        where TNumber : struct, INumber<TNumber>
+    {
+        foreach (var strategy in Enum.GetValues<Strategy>())
+        {
+            var summer = new NumberTimeSeriesSummer<TNumber>(TimeSpan.FromSeconds(1), 0, strategy);
+            var start = summer.Start;
+            summer.AddNewData(start, first);
+            summer.AddNewData(start, second);
+            summer.Samples[start].ShouldBe(strategy switch
+            {
+                Strategy.Sum => first + second,
+                Strategy.Min => TNumber.Min(first, second),
+                Strategy.Max => TNumber.Max(first, second),
+                Strategy.Replace => second,
+                _ => throw new InvalidOperationException("Unsupported strategy.")
+            });
+
+            var next = start.AddSeconds(1);
+            summer.AddNewData(next, newBucketValue);
+            summer.Samples[next].ShouldBe(newBucketValue);
+            summer.DataCount.ShouldBe(3ul);
+            summer.Start.ShouldBe(start);
+            summer.End.ShouldBe(next);
+        }
+    }
+
+    private static void AssertMergeAndResample<TNumber>()
+        where TNumber : struct, INumber<TNumber>
+    {
+        foreach (var strategy in Enum.GetValues<Strategy>())
+        {
+            var summer = new NumberTimeSeriesSummer<TNumber>(TimeSpan.FromSeconds(1), 0, strategy);
+            var incoming = new NumberTimeSeriesSummer<TNumber>(TimeSpan.FromSeconds(1), 0, strategy);
+            var interval = TimeSpan.FromSeconds(3);
+            var currentStartTicks = summer.Start.UtcDateTime.Ticks;
+            var alignedStartTicks = currentStartTicks - currentStartTicks % interval.Ticks;
+            var start = new DateTimeOffset(alignedStartTicks, TimeSpan.Zero);
+            var first = TNumber.CreateChecked(2);
+            var second = TNumber.CreateChecked(10);
+            var merged = TNumber.CreateChecked(3);
+            var newBucket = TNumber.CreateChecked(20);
+
+            summer.AddNewData(start, first);
+            summer.AddNewData(start.AddSeconds(1), second);
+            incoming.AddNewData(start, merged);
+            incoming.AddNewData(start.AddSeconds(3), newBucket);
+
+            summer.Merge(incoming);
+            summer.DataCount.ShouldBe(4ul);
+            summer.Start.ShouldBe(start);
+            summer.End.ShouldBe(start.AddSeconds(3));
+            summer.Samples[start].ShouldBe(strategy switch
+            {
+                Strategy.Sum => first + merged,
+                Strategy.Min => TNumber.Min(first, merged),
+                Strategy.Max => TNumber.Max(first, merged),
+                Strategy.Replace => merged,
+                _ => throw new InvalidOperationException("Unsupported strategy.")
+            });
+
+            summer.Resample(interval, 0);
+
+            if (strategy == Strategy.Replace)
+            {
+                // The source snapshot is unordered, so Replace keeps one of these inputs.
+                new[] { merged, second }.ShouldContain(summer.Samples[start]);
+            }
+            else
+            {
+                summer.Samples[start].ShouldBe(strategy switch
+                {
+                    Strategy.Sum => first + merged + second,
+                    Strategy.Min => TNumber.Min(TNumber.Min(first, merged), second),
+                    Strategy.Max => TNumber.Max(TNumber.Max(first, merged), second),
+                    _ => throw new InvalidOperationException("Unsupported strategy.")
+                });
+            }
+
+            summer.Samples[start.AddSeconds(3)].ShouldBe(newBucket);
+            summer.DataCount.ShouldBe(4ul);
+        }
     }
 
     // [Fact]

@@ -10,6 +10,32 @@ namespace ManagedCode.TimeSeries.Tests;
 public class ConcurrencyTests
 {
     [Fact]
+    public async Task NumberSummer_ConcurrentSameBucketUpdatesPreserveExactTotalAndRange()
+    {
+        var series = new NumberTimeSeriesSummer<long>(TimeSpan.FromSeconds(1), 0, Strategy.Sum);
+        var bucket = series.Start;
+        const int writerCount = 8;
+        const int updatesPerWriter = 2000;
+
+        var writers = Enumerable.Range(0, writerCount).Select(_ => Task.Run(() =>
+        {
+            for (var i = 0; i < updatesPerWriter; i++)
+            {
+                series.AddNewData(bucket, 1L);
+            }
+        }));
+
+        await Task.WhenAll(writers);
+
+        var expectedTotal = (long)(writerCount * updatesPerWriter);
+        series.DataCount.ShouldBe((ulong)expectedTotal);
+        series.Samples.Count.ShouldBe(1);
+        series.Samples[bucket].ShouldBe(expectedTotal);
+        series.Start.ShouldBe(bucket);
+        series.End.ShouldBe(bucket);
+    }
+
+    [Fact]
     public async Task Accumulator_ConcurrentWritesAndReads_AreSafe()
     {
         var interval = TimeSpan.FromMilliseconds(1);
