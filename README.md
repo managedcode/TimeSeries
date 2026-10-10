@@ -6,12 +6,17 @@
 [![Coverage Status](https://coveralls.io/repos/github/managedcode/TimeSeries/badge.svg?branch=main&service=github)](https://coveralls.io/github/managedcode/TimeSeries?branch=main)
 [![Release](https://github.com/managedcode/TimeSeries/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/managedcode/TimeSeries/actions/workflows/release.yml)
 [![CodeQL](https://github.com/managedcode/TimeSeries/actions/workflows/codeql-analysis.yml/badge.svg?branch=main)](https://github.com/managedcode/TimeSeries/actions/workflows/codeql-analysis.yml)
+[![Downloads](https://img.shields.io/nuget/dt/ManagedCode.TimeSeries.svg?style=flat-square&logo=nuget)](https://www.nuget.org/packages/ManagedCode.TimeSeries)
+[![License](https://img.shields.io/github/license/managedcode/TimeSeries.svg?style=flat-square)](LICENSE)
 
 > Lock-free, allocation-conscious, thread-safe time-series primitives for building fast counters, rolling analytics, and metric pipelines in .NET 10 / C# 14.
 
-| Package | NuGet |
-| --- | --- |
-| Core library | [![NuGet Package](https://img.shields.io/nuget/v/ManagedCode.TimeSeries.svg)](https://www.nuget.org/packages/ManagedCode.TimeSeries) |
+Package links open the latest stable release on NuGet; badges update automatically.
+
+| Package | Latest version | Downloads | Description |
+| --- | --- | --- | --- |
+| [ManagedCode.TimeSeries](https://www.nuget.org/packages/ManagedCode.TimeSeries) | [![NuGet](https://img.shields.io/nuget/v/ManagedCode.TimeSeries.svg?style=flat-square&logo=nuget)](https://www.nuget.org/packages/ManagedCode.TimeSeries) | [![Downloads](https://img.shields.io/nuget/dt/ManagedCode.TimeSeries.svg?style=flat-square&logo=nuget)](https://www.nuget.org/packages/ManagedCode.TimeSeries) | Thread-safe time-series accumulators, summers, and extensions. |
+| [ManagedCode.TimeSeries.Orleans](https://www.nuget.org/packages/ManagedCode.TimeSeries.Orleans) | [![NuGet](https://img.shields.io/nuget/v/ManagedCode.TimeSeries.Orleans.svg?style=flat-square&logo=nuget)](https://www.nuget.org/packages/ManagedCode.TimeSeries.Orleans) | [![Downloads](https://img.shields.io/nuget/dt/ManagedCode.TimeSeries.Orleans.svg?style=flat-square&logo=nuget)](https://www.nuget.org/packages/ManagedCode.TimeSeries.Orleans) | Orleans serializers and surrogates for the core time-series types. |
 
 ---
 
