@@ -43,15 +43,8 @@ jobs:
       - name: Verify formatter
         run: dotnet format ManagedCode.TimeSeries.slnx --verify-no-changes --no-restore
       - name: Full xUnit tests and native coverage
-        run: >-
-          dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj
-          --configuration Release --no-build --no-restore --verbosity normal
-          --logger "trx;LogFileName=timeseries.trx"
-          --results-directory artifacts/correctness
-          -p:CollectCoverage=true -p:CoverletOutputFormat=json
-          "-p:CoverletOutput=$GITHUB_WORKSPACE/artifacts/correctness/coverage.json"
-          '-p:Include=[ManagedCode.TimeSeries*]*'
-          -p:Threshold=90 -p:ThresholdType=line -p:ThresholdStat=Minimum
+        run: bash scripts/coverage.sh artifacts/correctness
+
       - name: Retain exact-source test and coverage evidence
         if: always()
         uses: actions/upload-artifact@v4

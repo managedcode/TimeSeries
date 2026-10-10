@@ -67,7 +67,7 @@ If no new rule is detected → do not update the file.
 - build: `dotnet build ManagedCode.TimeSeries.slnx --configuration Release`
 - test: `dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj --configuration Release`
 - format: `dotnet format ManagedCode.TimeSeries.slnx`
-- coverage: `dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj --configuration Release -p:CollectCoverage=true -p:CoverletOutputFormat=lcov`
+- coverage: `bash scripts/coverage.sh` (VSTest collector with a 90% per-module gate)
 
 ### Task Delivery (ALL TASKS)
 

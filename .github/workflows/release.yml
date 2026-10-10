@@ -46,16 +46,8 @@ jobs:
     - name: Build
       run: dotnet build ManagedCode.TimeSeries.slnx --configuration Release --no-restore
 
-    - name: Test
-      run: >-
-        dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj
-        --configuration Release --no-build --verbosity normal
-        --logger "trx;LogFileName=timeseries-release.trx"
-        --results-directory artifacts/qualification
-        -p:CollectCoverage=true -p:CoverletOutputFormat=json
-        "-p:CoverletOutput=$GITHUB_WORKSPACE/artifacts/qualification/coverage.json"
-        '-p:Include=[ManagedCode.TimeSeries*]*'
-        -p:Threshold=90 -p:ThresholdType=line -p:ThresholdStat=Minimum
+    - name: Test and enforce collector coverage
+      run: bash scripts/coverage.sh artifacts/qualification
 
     - name: Retain release qualification evidence
       if: always()

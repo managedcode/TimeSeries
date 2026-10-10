@@ -29,9 +29,9 @@ jobs:
       - name: Build
         run: dotnet build ManagedCode.TimeSeries.slnx --configuration Release --no-restore
       - name: Test and collect code coverage
-        run: dotnet test ManagedCode.TimeSeries.Tests/ManagedCode.TimeSeries.Tests.csproj --configuration Release --no-build -p:CollectCoverage=true -p:CoverletOutputFormat=lcov -p:CoverletOutput=./
+        run: bash scripts/coverage.sh artifacts/qualification
       - name: coveralls
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{secrets.GITHUB_TOKEN }}
-          path-to-lcov: ManagedCode.TimeSeries.Tests/coverage.info
+          path-to-lcov: artifacts/qualification/coverage.info

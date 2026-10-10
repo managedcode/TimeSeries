@@ -537,7 +537,7 @@ public class SummersTests
     {
         var seriesFeature = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10), 100);
         seriesFeature.MarkupAllSamples(MarkupDirection.Future);
-        seriesFeature.AddNewData(1);
+        seriesFeature.AddNewData(seriesFeature.Samples.Keys.Min(), 1);
         (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
         (seriesFeature.Samples.Keys.Max() - seriesFeature.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);
         var seriesFeatureOrdered = seriesFeature.Samples.OrderBy(o => o.Key).Take(10);
@@ -545,7 +545,7 @@ public class SummersTests
 
         var seriesPast = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10));
         seriesPast.MarkupAllSamples();
-        seriesPast.AddNewData(1);
+        seriesPast.AddNewData(seriesPast.Samples.Keys.Max(), 1);
         (seriesPast.Samples.Keys.Max() - seriesPast.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
         (seriesPast.Samples.Keys.Max() - seriesPast.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);
         var seriesPastOrdered = seriesPast.Samples.OrderBy(o => o.Key).TakeLast(10);
@@ -553,7 +553,7 @@ public class SummersTests
 
         var seriesMiddle = new IntTimeSeriesAccumulator(TimeSpan.FromMilliseconds(10), 100);
         seriesMiddle.MarkupAllSamples(MarkupDirection.Middle);
-        seriesMiddle.AddNewData(1);
+        seriesMiddle.AddNewData(seriesMiddle.Samples.Keys.Min() + (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()) / 2, 1);
         (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()).TotalMilliseconds.ShouldBeGreaterThanOrEqualTo(990);
         (seriesMiddle.Samples.Keys.Max() - seriesMiddle.Samples.Keys.Min()).TotalMilliseconds.ShouldBeLessThanOrEqualTo(1000);
         var seriesMiddleOrdered = seriesMiddle.Samples.OrderBy(o => o.Key).Skip(45).Take(10);
